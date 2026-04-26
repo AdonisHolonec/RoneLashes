@@ -19,6 +19,23 @@ function isAdminAuthenticated(request: NextRequest) {
   return verifyAdminSessionToken(token)
 }
 
+function normalizeWord(value: string) {
+  const trimmed = value.trim().replace(/\s+/g, ' ')
+  if (!trimmed) return ''
+  return trimmed
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
+function normalizeServiceName(value: string) {
+  return value.trim().replace(/\s+/g, ' ')
+}
+
+function normalizedKey(name: string, category: string, subcategory: string | null) {
+  return `${name.toLowerCase()}|${category.toLowerCase()}|${(subcategory || '').toLowerCase()}`
+}
+
 export async function POST(request: NextRequest) {
   if (!isAdminAuthenticated(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -31,12 +48,17 @@ export async function POST(request: NextRequest) {
 
     if (action === 'save') {
       const serviceId = body?.serviceId ? String(body.serviceId) : null
+      const normalizedName = normalizeServiceName(String(body?.name ?? ''))
+      const normalizedCategory = normalizeWord(String(body?.category ?? ''))
+      const normalizedSubcategoryRaw = normalizeWord(String(body?.subcategory ?? ''))
+      const normalizedSubcategory = normalizedSubcategoryRaw || null
+
       const payload = {
-        name: String(body?.name ?? '').trim(),
+        name: normalizedName,
         price: String(body?.price ?? '').trim(),
         duration_minutes: Number(body?.duration_minutes ?? 0),
-        category: String(body?.category ?? '').trim(),
-        subcategory: String(body?.subcategory ?? '').trim() || null,
+        category: normalizedCategory,
+        subcategory: normalizedSubcategory,
       }
       const legacyPayload = {
         name: payload.name,
@@ -47,6 +69,28 @@ export async function POST(request: NextRequest) {
 
       if (!payload.name || !payload.price || !Number.isFinite(payload.duration_minutes) || payload.duration_minutes <= 0) {
         return NextResponse.json({ error: 'Date serviciu invalide.' }, { status: 400 })
+      }
+
+      const { data: existingServices } = await supabase
+        .from('services')
+        .select('id, name, category, subcategory')
+
+      const duplicate = (existingServices || []).find((service) => {
+        if (serviceId && service.id === serviceId) return false
+        return (
+          normalizedKey(
+            String(service.name || ''),
+            String(service.category || ''),
+            service.subcategory ? String(service.subcategory) : null
+          ) === normalizedKey(payload.name, payload.category, payload.subcategory)
+        )
+      })
+
+      if (duplicate) {
+        return NextResponse.json(
+          { error: 'Există deja un serviciu cu același nume, categorie și subcategorie.' },
+          { status: 409 }
+        )
       }
 
       if (serviceId) {

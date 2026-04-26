@@ -10,6 +10,36 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import 'react-day-picker/dist/style.css'
 
+const CATEGORY_ORDER = [
+  'Volum',
+  'Efect',
+  'Întreținere',
+  'Laminare',
+  'Sprâncene',
+  'Alte servicii',
+]
+
+const SUBCATEGORY_ORDER = [
+  'Natural',
+  'Soft',
+  'Medium',
+  'Intens',
+  'Mega Volum',
+  'Fără subcategorie',
+]
+
+function sortByPreferredOrder(items: string[], preferredOrder: string[]) {
+  const rank = new Map(preferredOrder.map((value, idx) => [value.toLowerCase(), idx]))
+  return [...items].sort((a, b) => {
+    const aRank = rank.get(a.toLowerCase())
+    const bRank = rank.get(b.toLowerCase())
+    if (aRank !== undefined && bRank !== undefined) return aRank - bRank
+    if (aRank !== undefined) return -1
+    if (bRank !== undefined) return 1
+    return a.localeCompare(b)
+  })
+}
+
 export default function Home() {
   const emailServiceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || ''
   const emailTemplateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || ''
@@ -198,7 +228,10 @@ export default function Home() {
   }
 
   // --- LOGICA BOOKING ---
-  const categories = Array.from(new Set(services.map(s => s.category || 'Alte servicii')))
+  const categories = useMemo(
+    () => sortByPreferredOrder(Array.from(new Set(services.map((s) => s.category || 'Alte servicii'))), CATEGORY_ORDER),
+    [services]
+  )
   const servicesByCategory = useMemo(
     () =>
       categories.reduce((acc, cat) => {
@@ -212,7 +245,11 @@ export default function Home() {
           },
           {} as Record<string, any[]>
         )
-        acc[cat] = grouped
+        const sortedSubcategories = sortByPreferredOrder(Object.keys(grouped), SUBCATEGORY_ORDER)
+        acc[cat] = sortedSubcategories.reduce((subAcc, key) => {
+          subAcc[key] = grouped[key]
+          return subAcc
+        }, {} as Record<string, any[]>)
         return acc
       }, {} as Record<string, Record<string, any[]>>),
     [categories, services]

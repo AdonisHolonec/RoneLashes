@@ -10,6 +10,20 @@ import Image from 'next/image'
 import 'react-day-picker/dist/style.css'
 
 const daysMap = ['Duminică', 'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă']
+const CATEGORY_ORDER = ['Volum', 'Efect', 'Întreținere', 'Laminare', 'Sprâncene', 'Alte servicii']
+const SUBCATEGORY_ORDER = ['Natural', 'Soft', 'Medium', 'Intens', 'Mega Volum']
+
+function sortByPreferredOrder(items: string[], preferredOrder: string[]) {
+  const rank = new Map(preferredOrder.map((value, idx) => [value.toLowerCase(), idx]))
+  return [...items].sort((a, b) => {
+    const aRank = rank.get(a.toLowerCase())
+    const bRank = rank.get(b.toLowerCase())
+    if (aRank !== undefined && bRank !== undefined) return aRank - bRank
+    if (aRank !== undefined) return -1
+    if (bRank !== undefined) return 1
+    return a.localeCompare(b)
+  })
+}
 
 export default function AdminDashboard() {
   type AnalyticsEvent = {
@@ -659,26 +673,29 @@ export default function AdminDashboard() {
   const visibleReviews = useMemo(() => reviews, [reviews])
   const existingCategories = useMemo(
     () =>
-      Array.from(
+      sortByPreferredOrder(
+        Array.from(
         new Set(
           services
             .map((s) => String(s.category || '').trim())
             .filter((value) => value.length > 0)
         )
-      ).sort((a, b) => a.localeCompare(b)),
+      ),
+      CATEGORY_ORDER
+    ),
     [services]
   )
   const existingSubcategories = useMemo(
     () => {
       const selectedCategory = String(serviceForm.category || '').trim()
-      return Array.from(
+      return sortByPreferredOrder(Array.from(
         new Set(
           services
             .filter((s) => !selectedCategory || String(s.category || '').trim() === selectedCategory)
             .map((s) => String(s.subcategory || '').trim())
             .filter((value) => value.length > 0)
         )
-      ).sort((a, b) => a.localeCompare(b))
+      ), SUBCATEGORY_ORDER)
     },
     [services, serviceForm.category]
   )
