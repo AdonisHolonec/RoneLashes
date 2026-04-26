@@ -38,18 +38,32 @@ export async function POST(request: NextRequest) {
         category: String(body?.category ?? '').trim(),
         subcategory: String(body?.subcategory ?? '').trim() || null,
       }
+      const legacyPayload = {
+        name: payload.name,
+        price: payload.price,
+        duration_minutes: payload.duration_minutes,
+        category: payload.category,
+      }
 
       if (!payload.name || !payload.price || !Number.isFinite(payload.duration_minutes) || payload.duration_minutes <= 0) {
         return NextResponse.json({ error: 'Date serviciu invalide.' }, { status: 400 })
       }
 
       if (serviceId) {
-        const { error } = await supabase.from('services').update(payload).eq('id', serviceId)
+        let { error } = await supabase.from('services').update(payload).eq('id', serviceId)
+        if (error && String(error.message || '').toLowerCase().includes('subcategory')) {
+          const legacyResult = await supabase.from('services').update(legacyPayload).eq('id', serviceId)
+          error = legacyResult.error
+        }
         if (error) return NextResponse.json({ error: 'Serviciul nu a putut fi actualizat.' }, { status: 400 })
         return NextResponse.json({ ok: true })
       }
 
-      const { error } = await supabase.from('services').insert([payload])
+      let { error } = await supabase.from('services').insert([payload])
+      if (error && String(error.message || '').toLowerCase().includes('subcategory')) {
+        const legacyResult = await supabase.from('services').insert([legacyPayload])
+        error = legacyResult.error
+      }
       if (error) return NextResponse.json({ error: 'Serviciul nu a putut fi adăugat.' }, { status: 400 })
       return NextResponse.json({ ok: true })
     }

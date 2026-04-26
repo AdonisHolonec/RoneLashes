@@ -199,6 +199,24 @@ export default function Home() {
 
   // --- LOGICA BOOKING ---
   const categories = Array.from(new Set(services.map(s => s.category || 'Alte servicii')))
+  const servicesByCategory = useMemo(
+    () =>
+      categories.reduce((acc, cat) => {
+        const categoryServices = services.filter((s) => (s.category || 'Alte servicii') === cat)
+        const grouped = categoryServices.reduce(
+          (groups, service) => {
+            const subKey = String(service.subcategory || '').trim() || 'Fără subcategorie'
+            if (!groups[subKey]) groups[subKey] = []
+            groups[subKey].push(service)
+            return groups
+          },
+          {} as Record<string, any[]>
+        )
+        acc[cat] = grouped
+        return acc
+      }, {} as Record<string, Record<string, any[]>>),
+    [categories, services]
+  )
   const totalDuration = selectedServices.reduce((acc, s) => acc + s.duration_minutes, 0)
   const totalPrice = selectedServices.reduce((acc, s) => acc + (parseInt(String(s.price || '0').replace(/\D/g, '')) || 0), 0)
 
@@ -877,22 +895,32 @@ export default function Home() {
                         <span>{expandedCategory === cat ? '▲' : '▼'}</span>
                       </button>
                       
-                      {expandedCategory === cat && services.filter(s => s.category === cat).map(s => {
-                        const isSel = selectedServices.find(x => x.id === s.id)
-                        return (
-                          <button 
-                            key={s.id} 
-                            onClick={() => toggleService(s)} 
-                            className={`w-full flex justify-between items-center p-4 my-1 rounded-2xl border-2 transition-all ${isSel ? 'border-[#e21a6e] bg-[#fff5f8]' : 'border-gray-50 bg-gray-50 hover:border-gray-200'}`}
-                          >
-                            <div className="text-left">
-                              <p className="font-bold text-sm text-black">{isSel && '✓ '}{s.name}</p>
-                              <p className="text-[10px] font-black text-[#e21a6e]">{s.duration_minutes} min</p>
-                            </div>
-                            <p className="font-black text-sm text-black">{s.price}</p>
-                          </button>
-                        )
-                      })}
+                      {expandedCategory === cat &&
+                        Object.entries(servicesByCategory[cat] || {}).map(([subCategory, subServices]) => (
+                          <div key={`${cat}-${subCategory}`} className="pb-2">
+                            {subCategory !== 'Fără subcategorie' && (
+                              <p className="text-[10px] font-black uppercase tracking-widest opacity-40 px-2 py-2">
+                                {subCategory}
+                              </p>
+                            )}
+                            {subServices.map((s: any) => {
+                              const isSel = selectedServices.find((x) => x.id === s.id)
+                              return (
+                                <button
+                                  key={s.id}
+                                  onClick={() => toggleService(s)}
+                                  className={`w-full flex justify-between items-center p-4 my-1 rounded-2xl border-2 transition-all ${isSel ? 'border-[#e21a6e] bg-[#fff5f8]' : 'border-gray-50 bg-gray-50 hover:border-gray-200'}`}
+                                >
+                                  <div className="text-left">
+                                    <p className="font-bold text-sm text-black">{isSel && '✓ '}{s.name}</p>
+                                    <p className="text-[10px] font-black text-[#e21a6e]">{s.duration_minutes} min</p>
+                                  </div>
+                                  <p className="font-black text-sm text-black">{s.price}</p>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        ))}
                     </div>
                   ))}
                 </div>
