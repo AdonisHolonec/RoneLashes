@@ -39,6 +39,7 @@ export default function AdminDashboard() {
   const [analyticsEvents, setAnalyticsEvents] = useState<AnalyticsEvent[]>([])
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [analyticsRangeDays, setAnalyticsRangeDays] = useState<7 | 14 | 30>(14)
+  const [analyticsLastUpdated, setAnalyticsLastUpdated] = useState<Date | null>(null)
 
   // State-uri Agenda & Calendar
   const [selectedAgendaDate, setSelectedAgendaDate] = useState<Date>(new Date())
@@ -150,6 +151,7 @@ export default function AdminDashboard() {
       if (!response.ok) return
       const payload = await response.json()
       setAnalyticsEvents(payload?.events || [])
+      setAnalyticsLastUpdated(new Date())
     } finally {
       setAnalyticsLoading(false)
     }
@@ -231,6 +233,21 @@ export default function AdminDashboard() {
 
   const deleteItem = async (table: string, id: string) => {
     if (window.confirm("Sigur vrei să ștergi definitiv acest element?")) {
+      if (table === 'services') {
+        const response = await fetch('/api/admin/services', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete', serviceId: id }),
+        })
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}))
+          alert(payload?.error || 'Serviciul nu a putut fi șters.')
+          return
+        }
+        fetchAdminData()
+        return
+      }
+
       const { error } = await supabase.from(table).delete().eq('id', id)
       if (!error) fetchAdminData()
     }
@@ -333,8 +350,22 @@ export default function AdminDashboard() {
   }
 
   const handleSaveService = async () => {
-    if (editingServiceId) await supabase.from('services').update(serviceForm).eq('id', editingServiceId)
-    else await supabase.from('services').insert([serviceForm])
+    const response = await fetch('/api/admin/services', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'save',
+        serviceId: editingServiceId,
+        ...serviceForm,
+      }),
+    })
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      alert(payload?.error || 'Serviciul nu a putut fi salvat.')
+      return
+    }
+
     setIsAddingService(false); setEditingServiceId(null); fetchAdminData()
   }
 
@@ -462,6 +493,26 @@ export default function AdminDashboard() {
     })
     return counts
   }, [analyticsEvents])
+  const funnelRates = useMemo(() => {
+    const loginToBooking =
+      eventFunnel.client_login_success > 0
+        ? Math.round((eventFunnel.booking_created / eventFunnel.client_login_success) * 100)
+        : 0
+    const bookingToReview =
+      eventFunnel.booking_created > 0
+        ? Math.round((eventFunnel.review_submitted / eventFunnel.booking_created) * 100)
+        : 0
+    const bookingToWaitlist =
+      eventFunnel.booking_created > 0
+        ? Math.round((eventFunnel.waitlist_joined / eventFunnel.booking_created) * 100)
+        : 0
+    return { loginToBooking, bookingToReview, bookingToWaitlist }
+  }, [eventFunnel])
+  const getRateTone = (value: number, good: number, warn: number) => {
+    if (value >= good) return 'text-green-600'
+    if (value >= warn) return 'text-yellow-600'
+    return 'text-red-600'
+  }
   const previousAnalyticsDaily = useMemo(() => {
     const days = analyticsRangeDays
     const now = new Date()
@@ -515,6 +566,95 @@ export default function AdminDashboard() {
     return Math.round(currentRate - prevRate)
   }, [analyticsDaily, previousAnalyticsDaily])
   const formatDelta = (value: number) => (value > 0 ? `+${value}%` : `${value}%`)
+  const analyticsInsight = useMemo(() => {
+    const parts: string[] = []
+
+    if (bookingsDeltaPct > 0) parts.push(`cererea este în creștere (${formatDelta(bookingsDeltaPct)} bookings)`)
+    else if (bookingsDeltaPct < 0) parts.push(`cererea este în scădere (${formatDelta(bookingsDeltaPct)} bookings)`)
+    else parts.push('cererea este stabilă')
+
+    if (cancelsDeltaPct < 0) parts.push(`anulările au scăzut (${formatDelta(cancelsDeltaPct)})`)
+    else if (cancelsDeltaPct > 0) parts.push(`anulările au crescut (${formatDelta(cancelsDeltaPct)})`)
+    else parts.push('anulările sunt constante')
+
+    if (cancelRateDeltaPct < 0) parts.push(`rata anulărilor s-a îmbunătățit (${cancelRateDeltaPct}pp)`)
+    else if (cancelRateDeltaPct > 0) parts.push(`rata anulărilor s-a deteriorat (+${cancelRateDeltaPct}pp)`)
+    else parts.push('rata anulărilor este stabilă')
+
+    return `Insight: ${parts.join(', ')}.`
+  }, [bookingsDeltaPct, cancelsDeltaPct, cancelRateDeltaPct])
+  const analyticsConfidence = useMemo(() => {
+    const totalBookings = analyticsDaily.reduce((acc, d) => acc + d.bookings, 0)
+    if (totalBookings < 10) {
+      return {
+        label: 'Volum mic',
+        note: 'Semnalele pot varia puternic. Interpretează trendul cu prudență.',
+        tone: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+      }
+    }
+    if (totalBookings < 25) {
+      return {
+        label: 'Volum mediu',
+        note: 'Trendul este util orientativ, dar poate avea fluctuații.',
+        tone: 'bg-blue-50 text-blue-700 border-blue-200',
+      }
+    }
+    return {
+      label: 'Date suficiente',
+      note: 'Trendul este mai stabil și potrivit pentru decizii operaționale.',
+      tone: 'bg-green-50 text-green-700 border-green-200',
+    }
+  }, [analyticsDaily])
+  const topBusyDays = useMemo(() => {
+    const map = new Map<string, number>()
+    appointments.forEach((app) => {
+      const date = parseISO(app.start_time)
+      const diffDays = (new Date().getTime() - date.getTime()) / (1000 * 60 * 60 * 24)
+      if (diffDays < 0 || diffDays > analyticsRangeDays) return
+      const dayLabel = format(date, 'EEEE', { locale: ro })
+      map.set(dayLabel, (map.get(dayLabel) || 0) + 1)
+    })
+    return Array.from(map.entries())
+      .map(([day, count]) => ({ day, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3)
+  }, [appointments, analyticsRangeDays])
+  const analyticsRecommendations = useMemo(() => {
+    const items: string[] = []
+    const totalBookings = analyticsDaily.reduce((acc, d) => acc + d.bookings, 0)
+    const totalCanceled = analyticsDaily.reduce((acc, d) => acc + d.canceled, 0)
+    const cancelRate = totalBookings === 0 ? 0 : (totalCanceled / totalBookings) * 100
+
+    if (bookingsDeltaPct >= 15) {
+      items.push('Cererea este în creștere puternică: ia în calcul extinderea programului în intervalele de vârf.')
+    } else if (bookingsDeltaPct <= -15) {
+      items.push('Cererea este în scădere: activează o campanie scurtă (ofertă/re-engagement) pentru cliente inactive.')
+    }
+
+    if (cancelRate >= 25) {
+      items.push('Rata anulărilor este ridicată: trimite remindere cu 24h înainte și cere reconfirmare în ziua programării.')
+    } else if (cancelRate <= 10 && totalBookings >= 10) {
+      items.push('Rata anulărilor este bună: păstrează fluxul actual de confirmare și reminder.')
+    }
+
+    if (topBusyDays.length > 0 && topBusyDays[0].count >= Math.max(4, Math.round(totalBookings * 0.25))) {
+      items.push(`Ziua "${topBusyDays[0].day}" concentrează multe programări: blochează mai puține pauze în acea zi sau deschide +1h în orele de seară.`)
+    }
+
+    if (eventFunnel.client_login_success > 0 && eventFunnel.booking_created === 0) {
+      items.push('Există logări fără conversie în programări: simplifică pasul de selecție servicii sau evidențiază primul slot liber.')
+    }
+
+    if (eventFunnel.booking_created > 0 && eventFunnel.review_submitted === 0) {
+      items.push('Programările nu generează recenzii: adaugă un reminder post-vizită pentru review la 4-6h după finalizare.')
+    }
+
+    if (items.length === 0) {
+      items.push('Indicatorii sunt stabili. Continuă monitorizarea săptămânală și ajustează programul doar când trendul se menține cel puțin 2 intervale consecutive.')
+    }
+
+    return items.slice(0, 4)
+  }, [analyticsDaily, bookingsDeltaPct, eventFunnel, topBusyDays])
   const visiblePortfolioPhotos = useMemo(() => photos, [photos])
   const visibleReviews = useMemo(() => reviews, [reviews])
 
@@ -856,7 +996,7 @@ export default function AdminDashboard() {
           <div className="animate-in fade-in duration-700">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-10">
               <h2 className="text-4xl font-serif italic font-bold">Analytics Operațional</h2>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {[7, 14, 30].map((day) => (
                   <button
                     key={day}
@@ -866,8 +1006,18 @@ export default function AdminDashboard() {
                     {day}d
                   </button>
                 ))}
+                <button
+                  onClick={() => fetchAnalyticsEvents(analyticsRangeDays)}
+                  disabled={analyticsLoading}
+                  className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white border border-gray-200 text-black hover:border-black disabled:opacity-50"
+                >
+                  {analyticsLoading ? 'Refresh...' : 'Refresh'}
+                </button>
               </div>
             </div>
+            <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-6">
+              Ultima actualizare: {analyticsLastUpdated ? format(analyticsLastUpdated, 'dd MMM yyyy, HH:mm', { locale: ro }) : 'n/a'}
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
               <div className="bg-white p-5 rounded-2xl border border-gray-100">
                 <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Login Success</p>
@@ -890,6 +1040,20 @@ export default function AdminDashboard() {
                 <p className="text-2xl font-black mt-2">{eventFunnel.portfolio_rated}</p>
               </div>
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Conversie login → booking</p>
+                <p className={`text-2xl font-black mt-2 ${getRateTone(funnelRates.loginToBooking, 45, 25)}`}>{funnelRates.loginToBooking}%</p>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Conversie booking → review</p>
+                <p className={`text-2xl font-black mt-2 ${getRateTone(funnelRates.bookingToReview, 35, 15)}`}>{funnelRates.bookingToReview}%</p>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Pondere waitlist din booking</p>
+                <p className={`text-2xl font-black mt-2 ${funnelRates.bookingToWaitlist <= 10 ? 'text-green-600' : funnelRates.bookingToWaitlist <= 20 ? 'text-yellow-600' : 'text-red-600'}`}>{funnelRates.bookingToWaitlist}%</p>
+              </div>
+            </div>
             <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-gray-100 shadow-sm mb-8">
               <h3 className="text-xl font-black mb-2">Trend zilnic ultimele {analyticsRangeDays} zile</h3>
               <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-8">Booking-uri vs anulări</p>
@@ -908,6 +1072,13 @@ export default function AdminDashboard() {
                   </div>
                 ))}
               </div>
+            </div>
+            <div className="bg-[#fff5f8] border border-[#e21a6e]/20 rounded-2xl px-6 py-4 mb-8">
+              <p className="text-sm font-bold text-black/80">{analyticsInsight}</p>
+            </div>
+            <div className={`border rounded-2xl px-6 py-4 mb-8 ${analyticsConfidence.tone}`}>
+              <p className="text-[10px] font-black uppercase tracking-widest mb-1">Încredere semnal: {analyticsConfidence.label}</p>
+              <p className="text-sm font-bold">{analyticsConfidence.note}</p>
             </div>
             {analyticsLoading && (
               <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-4">Se încarcă funnel-ul de evenimente...</p>
@@ -940,6 +1111,31 @@ export default function AdminDashboard() {
                 <p className={`text-[10px] font-black uppercase mt-2 ${cancelRateDeltaPct <= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {cancelRateDeltaPct > 0 ? `+${cancelRateDeltaPct}pp` : `${cancelRateDeltaPct}pp`} vs perioada anterioară
                 </p>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 mt-8">
+              <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-4">Top zile ocupate ({analyticsRangeDays} zile)</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {topBusyDays.length > 0 ? (
+                  topBusyDays.map((item) => (
+                    <div key={item.day} className="bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                      <p className="text-xs font-black capitalize">{item.day}</p>
+                      <p className="text-lg font-black mt-1">{item.count} programări</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm opacity-40 italic">Nu există suficiente date în intervalul selectat.</p>
+                )}
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 mt-8">
+              <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-4">Recomandări automate</p>
+              <div className="space-y-2">
+                {analyticsRecommendations.map((text, idx) => (
+                  <p key={idx} className="text-sm font-bold text-black/80">
+                    {idx + 1}. {text}
+                  </p>
+                ))}
               </div>
             </div>
           </div>
