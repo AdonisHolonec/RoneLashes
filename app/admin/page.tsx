@@ -7,23 +7,10 @@ import { ro } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
 import { DayPicker } from 'react-day-picker'
 import Image from 'next/image'
+import { DEFAULT_CATEGORY_ORDER, DEFAULT_SUBCATEGORY_ORDER, parseCsvOrder, sortByPreferredOrder } from '@/lib/service-order'
 import 'react-day-picker/dist/style.css'
 
 const daysMap = ['Duminică', 'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă']
-const CATEGORY_ORDER = ['Volum', 'Efect', 'Întreținere', 'Laminare', 'Sprâncene', 'Alte servicii']
-const SUBCATEGORY_ORDER = ['Natural', 'Soft', 'Medium', 'Intens', 'Mega Volum']
-
-function sortByPreferredOrder(items: string[], preferredOrder: string[]) {
-  const rank = new Map(preferredOrder.map((value, idx) => [value.toLowerCase(), idx]))
-  return [...items].sort((a, b) => {
-    const aRank = rank.get(a.toLowerCase())
-    const bRank = rank.get(b.toLowerCase())
-    if (aRank !== undefined && bRank !== undefined) return aRank - bRank
-    if (aRank !== undefined) return -1
-    if (bRank !== undefined) return 1
-    return a.localeCompare(b)
-  })
-}
 
 export default function AdminDashboard() {
   type AnalyticsEvent = {
@@ -60,6 +47,8 @@ export default function AdminDashboard() {
 
   // State-uri Finanțe
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
+  const [categoryOrderInput, setCategoryOrderInput] = useState(DEFAULT_CATEGORY_ORDER.join(', '))
+  const [subcategoryOrderInput, setSubcategoryOrderInput] = useState(DEFAULT_SUBCATEGORY_ORDER.join(', '))
 
   // Gestiune Servicii
   const [isAddingService, setIsAddingService] = useState(false)
@@ -156,6 +145,34 @@ export default function AdminDashboard() {
     setHasMoreReviews(nextData.length === REVIEWS_PAGE_SIZE)
     setReviewsPage(page)
     setReviews((prev) => (append ? [...prev, ...nextData] : nextData))
+  }
+
+  async function fetchServiceOrderConfig() {
+    const response = await fetch('/api/admin/service-order', { method: 'GET' })
+    if (!response.ok) return
+    const payload = await response.json()
+    if (Array.isArray(payload?.categoryOrder)) {
+      setCategoryOrderInput(payload.categoryOrder.join(', '))
+    }
+    if (Array.isArray(payload?.subcategoryOrder)) {
+      setSubcategoryOrderInput(payload.subcategoryOrder.join(', '))
+    }
+  }
+
+  async function handleSaveServiceOrderConfig() {
+    const categoryOrder = parseCsvOrder(categoryOrderInput)
+    const subcategoryOrder = parseCsvOrder(subcategoryOrderInput)
+    const response = await fetch('/api/admin/service-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoryOrder, subcategoryOrder }),
+    })
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      alert(payload?.error || 'Nu am putut salva ordinea.')
+      return
+    }
+    alert('Ordinea categoriilor/subcategoriilor a fost salvată.')
   }
 
   async function fetchAnalyticsEvents(days: 7 | 14 | 30) {
@@ -681,7 +698,7 @@ export default function AdminDashboard() {
             .filter((value) => value.length > 0)
         )
       ),
-      CATEGORY_ORDER
+      DEFAULT_CATEGORY_ORDER
     ),
     [services]
   )
@@ -695,7 +712,7 @@ export default function AdminDashboard() {
             .map((s) => String(s.subcategory || '').trim())
             .filter((value) => value.length > 0)
         )
-      ), SUBCATEGORY_ORDER)
+      ), DEFAULT_SUBCATEGORY_ORDER)
     },
     [services, serviceForm.category]
   )
@@ -723,6 +740,9 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeTab === 'analytics') {
       fetchAnalyticsEvents(analyticsRangeDays)
+    }
+    if (activeTab === 'settings') {
+      fetchServiceOrderConfig()
     }
   }, [activeTab, analyticsRangeDays])
 
@@ -995,6 +1015,35 @@ export default function AdminDashboard() {
                   <button onClick={() => handleUpdateSchedule(item)} className="w-full md:w-auto bg-black text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-[#e21a6e] transition-all shadow-md"> Salvează </button>
                 </div>
               )) : ( <div className="py-8 text-center"><p className="font-serif italic opacity-30 mb-2">Nu s-au găsit setări de program.</p></div> )}
+            </div>
+
+            <div className="bg-white p-6 md:p-10 rounded-[3.5rem] shadow-sm border border-gray-100 mb-10">
+              <h3 className="text-xl font-black mb-6">Ordine categorii/subcategorii (portal client)</h3>
+              <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-4">
+                Separă valorile prin virgulă
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <textarea
+                  className="w-full p-4 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none min-h-[120px]"
+                  value={categoryOrderInput}
+                  onChange={(e) => setCategoryOrderInput(e.target.value)}
+                  placeholder="Volum, Efect, Întreținere, Laminare, Sprâncene"
+                />
+                <textarea
+                  className="w-full p-4 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none min-h-[120px]"
+                  value={subcategoryOrderInput}
+                  onChange={(e) => setSubcategoryOrderInput(e.target.value)}
+                  placeholder="Natural, Soft, Medium, Intens, Mega Volum"
+                />
+              </div>
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={handleSaveServiceOrderConfig}
+                  className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#e21a6e] transition-all shadow-md"
+                >
+                  Salvează ordinea
+                </button>
+              </div>
             </div>
 
             <div className="bg-white p-6 md:p-10 rounded-[3.5rem] shadow-sm border border-gray-100">

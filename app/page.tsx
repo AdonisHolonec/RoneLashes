@@ -8,37 +8,8 @@ import { format, addMinutes, isBefore, isAfter, parseISO, isSameDay, startOfToda
 import emailjs from '@emailjs/browser'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { DEFAULT_CATEGORY_ORDER, DEFAULT_SUBCATEGORY_ORDER, sortByPreferredOrder } from '@/lib/service-order'
 import 'react-day-picker/dist/style.css'
-
-const CATEGORY_ORDER = [
-  'Volum',
-  'Efect',
-  'Întreținere',
-  'Laminare',
-  'Sprâncene',
-  'Alte servicii',
-]
-
-const SUBCATEGORY_ORDER = [
-  'Natural',
-  'Soft',
-  'Medium',
-  'Intens',
-  'Mega Volum',
-  'Fără subcategorie',
-]
-
-function sortByPreferredOrder(items: string[], preferredOrder: string[]) {
-  const rank = new Map(preferredOrder.map((value, idx) => [value.toLowerCase(), idx]))
-  return [...items].sort((a, b) => {
-    const aRank = rank.get(a.toLowerCase())
-    const bRank = rank.get(b.toLowerCase())
-    if (aRank !== undefined && bRank !== undefined) return aRank - bRank
-    if (aRank !== undefined) return -1
-    if (bRank !== undefined) return 1
-    return a.localeCompare(b)
-  })
-}
 
 export default function Home() {
   const emailServiceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || ''
@@ -93,6 +64,8 @@ export default function Home() {
 
   // Dashboard States
   const [myAppointments, setMyAppointments] = useState<any[]>([])
+  const [categoryOrder, setCategoryOrder] = useState<string[]>(DEFAULT_CATEGORY_ORDER)
+  const [subcategoryOrder, setSubcategoryOrder] = useState<string[]>(DEFAULT_SUBCATEGORY_ORDER)
   const [authSubmitting, setAuthSubmitting] = useState(false)
 
   const router = useRouter()
@@ -151,7 +124,7 @@ export default function Home() {
   async function fetchGlobalData() {
     try {
       const todayString = new Date().toISOString().split('T')[0]
-      const [sRes, aRes, pRes, prRes, schedRes, cRes] = await Promise.all([
+      const [sRes, aRes, pRes, prRes, schedRes, cRes, orderRes] = await Promise.all([
         supabase.from('services').select('*'),
         supabase
           .from('appointments')
@@ -160,6 +133,7 @@ export default function Home() {
         supabase.from('portfolio_ratings').select('id, photo_id, client_id, rating'),
         supabase.from('working_hours').select('*'),
         supabase.from('salon_closures').select('*').gte('end_date', todayString),
+        fetch('/api/public/service-order', { method: 'GET' }),
       ])
 
       if (sRes.data) setServices(sRes.data)
@@ -168,6 +142,11 @@ export default function Home() {
       if (prRes.data) setPortfolioRatings(prRes.data)
       if (schedRes.data) setSchedule(schedRes.data)
       if (cRes.data) setClosures(cRes.data)
+      if (orderRes.ok) {
+        const payload = await orderRes.json()
+        if (Array.isArray(payload?.categoryOrder)) setCategoryOrder(payload.categoryOrder)
+        if (Array.isArray(payload?.subcategoryOrder)) setSubcategoryOrder(payload.subcategoryOrder)
+      }
     } finally {
       setLoading(false)
     }
@@ -229,8 +208,8 @@ export default function Home() {
 
   // --- LOGICA BOOKING ---
   const categories = useMemo(
-    () => sortByPreferredOrder(Array.from(new Set(services.map((s) => s.category || 'Alte servicii'))), CATEGORY_ORDER),
-    [services]
+    () => sortByPreferredOrder(Array.from(new Set(services.map((s) => s.category || 'Alte servicii'))), categoryOrder),
+    [services, categoryOrder]
   )
   const servicesByCategory = useMemo(
     () =>
@@ -245,14 +224,14 @@ export default function Home() {
           },
           {} as Record<string, any[]>
         )
-        const sortedSubcategories = sortByPreferredOrder(Object.keys(grouped), SUBCATEGORY_ORDER)
+        const sortedSubcategories = sortByPreferredOrder(Object.keys(grouped), subcategoryOrder)
         acc[cat] = sortedSubcategories.reduce((subAcc, key) => {
           subAcc[key] = grouped[key]
           return subAcc
         }, {} as Record<string, any[]>)
         return acc
       }, {} as Record<string, Record<string, any[]>>),
-    [categories, services]
+    [categories, services, subcategoryOrder]
   )
   const totalDuration = selectedServices.reduce((acc, s) => acc + s.duration_minutes, 0)
   const totalPrice = selectedServices.reduce((acc, s) => acc + (parseInt(String(s.price || '0').replace(/\D/g, '')) || 0), 0)
