@@ -10,12 +10,14 @@ type AuthAuditEvent = {
 }
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
 async function persistAuthAuditEvent(event: AuthAuditEvent, safePhone: string) {
-  if (!supabaseUrl || !supabaseAnonKey) return
+  if (!supabaseUrl || !supabaseServiceRoleKey) return
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey)
+  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
   await supabase.from('auth_events').insert({
     area: event.area,
     action: event.action,
@@ -23,7 +25,6 @@ async function persistAuthAuditEvent(event: AuthAuditEvent, safePhone: string) {
     phone_masked: safePhone,
     ip_address: event.ip || null,
     reason: event.reason || null,
-    created_at: new Date().toISOString(),
   })
 }
 
