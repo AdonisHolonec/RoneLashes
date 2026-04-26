@@ -7,6 +7,7 @@ import { ro } from 'date-fns/locale'
 import { format, addMinutes, isBefore, isAfter, parseISO, isSameDay, startOfToday } from 'date-fns'
 import emailjs from '@emailjs/browser'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import 'react-day-picker/dist/style.css'
 
 export default function Home() {
@@ -62,18 +63,27 @@ export default function Home() {
 
   // Dashboard States
   const [myAppointments, setMyAppointments] = useState<any[]>([])
+  const [authSubmitting, setAuthSubmitting] = useState(false)
 
   const router = useRouter()
 
   useEffect(() => {
-    fetchGlobalData()
-    const savedClient = localStorage.getItem('rone_client')
-    if (savedClient) {
-      const parsed = JSON.parse(savedClient)
-      setClient(parsed)
-      setView('dashboard')
-      fetchClientAppointments(parsed.id)
+    const init = async () => {
+      fetchGlobalData()
+      try {
+        const response = await fetch('/api/client/auth', { method: 'GET' })
+        if (!response.ok) return
+        const payload = await response.json()
+        if (payload?.client?.id) {
+          setClient(payload.client)
+          setView('dashboard')
+          fetchClientAppointments(payload.client.id)
+        }
+      } catch {
+        // fallback: rămânem pe ecranul de auth dacă sesiunea nu poate fi citită
+      }
     }
+    init()
   }, [])
 
   // --- LOGICA PENTRU RULARE AUTOMATĂ ---
@@ -142,27 +152,43 @@ export default function Home() {
   // --- LOGICA AUTH ---
   const handleAuth = async () => {
     if (phone.length < 10 || pin.length < 4) return window.alert("Te rugăm să completezi datele corect!")
-    
-    if (isRegistering) {
-      const { data, error } = await supabase.from('clients').insert({ phone, full_name: fullName, pin }).select().single()
-      if (error) return window.alert("Eroare: Numărul de telefon există deja sau datele sunt invalide.")
-      loginClient(data)
-    } else {
-      const { data, error } = await supabase.from('clients').select('*').eq('phone', phone).eq('pin', pin).single()
-      if (error || !data) return window.alert("Telefon sau PIN incorect!")
-      loginClient(data)
+
+    setAuthSubmitting(true)
+    try {
+      const response = await fetch('/api/client/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: isRegistering ? 'register' : 'login',
+          phone,
+          pin,
+          fullName,
+        }),
+      })
+      const payload = await response.json()
+      if (!response.ok || !payload?.client) {
+        return window.alert(payload?.error || 'Autentificare eșuată.')
+      }
+      loginClient(payload.client)
+    } catch {
+      window.alert('Nu am putut procesa autentificarea. Încearcă din nou.')
+    } finally {
+      setAuthSubmitting(false)
     }
   }
 
   const loginClient = (clientData: any) => {
     setClient(clientData)
-    localStorage.setItem('rone_client', JSON.stringify(clientData))
     setView('dashboard')
     fetchClientAppointments(clientData.id)
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('rone_client')
+  const handleLogout = async () => {
+    await fetch('/api/client/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'logout' }),
+    }).catch(() => null)
     setClient(null)
     setView('auth')
   }
@@ -403,7 +429,14 @@ export default function Home() {
         <div className="min-h-screen flex flex-col items-center justify-between py-12 px-6 text-center bg-gradient-to-br from-[#fce4ec] to-[#f8bbd0]">
           <div className="w-full flex flex-col items-center animate-in fade-in">
             <p className="text-[11px] font-black tracking-[0.4em] uppercase opacity-70 mb-4 text-black">Lash & Make-up Artist</p>
-            <img src="/icon-512x512.png" alt="Logo" className="w-32 h-32 mx-auto mb-4 drop-shadow-xl" />
+            <Image
+              src="/icon-512x512.png"
+              alt="Logo"
+              width={128}
+              height={128}
+              className="w-32 h-32 mx-auto mb-4 drop-shadow-xl"
+              priority
+            />
             <h1 className="text-4xl font-serif italic mb-2 font-bold text-black">Holonec Ronela</h1>
             <div className="h-1 w-20 bg-[#e21a6e] mx-auto mb-4 rounded-full"></div>
             
@@ -454,8 +487,8 @@ export default function Home() {
                 onChange={e => setPin(e.target.value.replace(/\D/g, ''))} 
               />
               
-              <button onClick={handleAuth} className="w-full py-5 bg-black text-white font-black rounded-3xl shadow-xl uppercase text-xs tracking-widest active:scale-95 transition-all">
-                {isRegistering ? 'Creează Cont' : 'Intră în Cont'}
+              <button disabled={authSubmitting} onClick={handleAuth} className="w-full py-5 bg-black text-white font-black rounded-3xl shadow-xl uppercase text-xs tracking-widest active:scale-95 transition-all disabled:opacity-50">
+                {authSubmitting ? 'Se procesează...' : isRegistering ? 'Creează Cont' : 'Intră în Cont'}
               </button>
               
               <button onClick={() => setIsRegistering(!isRegistering)} className="text-[10px] font-black uppercase opacity-40 tracking-widest mt-4 text-black">
@@ -651,7 +684,13 @@ export default function Home() {
 
                     return (
                       <div key={p.id} className="min-w-[160px] max-w-[160px] relative aspect-square rounded-3xl overflow-hidden shadow-sm border border-gray-100 group snap-center shrink-0">
-                        <img src={p.url} className="w-full h-full object-cover" alt="Portofoliu" />
+                        <Image
+                          src={p.url}
+                          alt="Portofoliu"
+                          fill
+                          sizes="160px"
+                          className="object-cover"
+                        />
                         
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-6 pb-3 px-2 flex flex-col items-center justify-end">
                           <span className="text-[9px] text-white font-black uppercase tracking-widest mb-1 shadow-black drop-shadow-md">
