@@ -50,7 +50,7 @@ export default function AdminDashboard() {
   // Gestiune Servicii
   const [isAddingService, setIsAddingService] = useState(false)
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
-  const [serviceForm, setServiceForm] = useState({ name: '', price: '', duration_minutes: 60, category: '' })
+  const [serviceForm, setServiceForm] = useState({ name: '', price: '', duration_minutes: 60, category: '', subcategory: '' })
 
   // Gestiune Portofoliu
   const [uploading, setUploading] = useState(false)
@@ -657,6 +657,31 @@ export default function AdminDashboard() {
   }, [analyticsDaily, bookingsDeltaPct, eventFunnel, topBusyDays])
   const visiblePortfolioPhotos = useMemo(() => photos, [photos])
   const visibleReviews = useMemo(() => reviews, [reviews])
+  const existingCategories = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          services
+            .map((s) => String(s.category || '').trim())
+            .filter((value) => value.length > 0)
+        )
+      ).sort((a, b) => a.localeCompare(b)),
+    [services]
+  )
+  const existingSubcategories = useMemo(
+    () => {
+      const selectedCategory = String(serviceForm.category || '').trim()
+      return Array.from(
+        new Set(
+          services
+            .filter((s) => !selectedCategory || String(s.category || '').trim() === selectedCategory)
+            .map((s) => String(s.subcategory || '').trim())
+            .filter((value) => value.length > 0)
+        )
+      ).sort((a, b) => a.localeCompare(b))
+    },
+    [services, serviceForm.category]
+  )
 
   const loadMorePortfolio = async () => {
     if (!hasMorePortfolio || portfolioLoadingMore) return
@@ -1143,9 +1168,113 @@ export default function AdminDashboard() {
 
         {activeTab === 'services' && (
           <div className="animate-in fade-in duration-700">
-            <div className="flex justify-between items-center mb-16"><h2 className="text-4xl font-serif italic font-bold">Management Servicii</h2><button onClick={() => { setIsAddingService(true); setEditingServiceId(null); setServiceForm({name:'', price:'', duration_minutes:60, category:''}) }} className="bg-black text-white px-10 py-5 rounded-[2rem] text-[11px] font-black uppercase shadow-xl hover:bg-gray-800 transition-colors">+ Adaugă Nou</button></div>
-            {isAddingService && ( <div className="mb-16 bg-white p-12 rounded-[3.5rem] shadow-2xl border-4 border-black animate-in zoom-in text-black"><div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10"><input placeholder="Nume" className="p-5 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none transition-colors" value={serviceForm.name} onChange={e => setServiceForm({...serviceForm, name: e.target.value})} /><input placeholder="Preț" className="p-5 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none transition-colors" value={serviceForm.price} onChange={e => setServiceForm({...serviceForm, price: e.target.value})} /><input type="number" placeholder="Minute" className="p-5 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none transition-colors" value={serviceForm.duration_minutes} onChange={e => setServiceForm({...serviceForm, duration_minutes: parseInt(e.target.value)})} /><input placeholder="Categorie" className="p-5 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none transition-colors" value={serviceForm.category} onChange={e => setServiceForm({...serviceForm, category: e.target.value})} /></div><div className="flex gap-4"><button onClick={handleSaveService} className="flex-1 py-6 bg-[#e21a6e] text-white rounded-3xl font-black uppercase shadow-xl hover:bg-black transition-all">Salvează Serviciul</button><button onClick={() => setIsAddingService(false)} className="px-10 py-6 bg-gray-100 rounded-3xl font-black uppercase text-black hover:bg-gray-200 transition-colors">Anulează</button></div></div> )}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">{services.map(s => ( <div key={s.id} className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-center group hover:border-[#e21a6e]/30 transition-all text-black"><div><p className="text-[10px] font-black uppercase text-[#e21a6e] mb-1">{s.category || 'Serviciu'}</p><h4 className="text-xl font-black">{s.name}</h4><p className="text-sm font-bold opacity-30">{s.price} — {s.duration_minutes} min</p></div><div className="flex gap-2"><button onClick={() => { setEditingServiceId(s.id); setServiceForm({name: s.name, price: s.price, duration_minutes: s.duration_minutes, category: s.category}); setIsAddingService(true); }} className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center hover:bg-black hover:text-white transition-all text-black">✎</button><button onClick={() => deleteItem('services', s.id)} className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">✕</button></div></div> ))}</div>
+            <div className="flex justify-between items-center mb-16">
+              <h2 className="text-4xl font-serif italic font-bold">Management Servicii</h2>
+              <button
+                onClick={() => {
+                  setIsAddingService(true)
+                  setEditingServiceId(null)
+                  setServiceForm({ name: '', price: '', duration_minutes: 60, category: '', subcategory: '' })
+                }}
+                className="bg-black text-white px-10 py-5 rounded-[2rem] text-[11px] font-black uppercase shadow-xl hover:bg-gray-800 transition-colors"
+              >
+                + Adaugă Nou
+              </button>
+            </div>
+            {isAddingService && (
+              <div className="mb-16 bg-white p-12 rounded-[3.5rem] shadow-2xl border-4 border-black animate-in zoom-in text-black">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                  <input
+                    placeholder="Nume"
+                    className="p-5 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none transition-colors"
+                    value={serviceForm.name}
+                    onChange={(e) => setServiceForm({ ...serviceForm, name: e.target.value })}
+                  />
+                  <input
+                    placeholder="Preț"
+                    className="p-5 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none transition-colors"
+                    value={serviceForm.price}
+                    onChange={(e) => setServiceForm({ ...serviceForm, price: e.target.value })}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Minute"
+                    className="p-5 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none transition-colors"
+                    value={serviceForm.duration_minutes}
+                    onChange={(e) => setServiceForm({ ...serviceForm, duration_minutes: parseInt(e.target.value) })}
+                  />
+                  <div className="space-y-3">
+                    <input
+                      list="existing-categories"
+                      placeholder="Categorie"
+                      className="w-full p-5 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none transition-colors"
+                      value={serviceForm.category}
+                      onChange={(e) => setServiceForm({ ...serviceForm, category: e.target.value })}
+                    />
+                    <datalist id="existing-categories">
+                      {existingCategories.map((category) => (
+                        <option key={category} value={category} />
+                      ))}
+                    </datalist>
+                    <input
+                      list="existing-subcategories"
+                      placeholder="Subcategorie (opțional)"
+                      className="w-full p-5 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none transition-colors"
+                      value={serviceForm.subcategory}
+                      onChange={(e) => setServiceForm({ ...serviceForm, subcategory: e.target.value })}
+                    />
+                    <datalist id="existing-subcategories">
+                      {existingSubcategories.map((subcategory) => (
+                        <option key={subcategory} value={subcategory} />
+                      ))}
+                    </datalist>
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <button onClick={handleSaveService} className="flex-1 py-6 bg-[#e21a6e] text-white rounded-3xl font-black uppercase shadow-xl hover:bg-black transition-all">
+                    Salvează Serviciul
+                  </button>
+                  <button onClick={() => setIsAddingService(false)} className="px-10 py-6 bg-gray-100 rounded-3xl font-black uppercase text-black hover:bg-gray-200 transition-colors">
+                    Anulează
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {services.map((s) => (
+                <div key={s.id} className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-center group hover:border-[#e21a6e]/30 transition-all text-black">
+                  <div>
+                    <p className="text-[10px] font-black uppercase text-[#e21a6e] mb-1">
+                      {s.category || 'Serviciu'}
+                      {s.subcategory ? ` / ${s.subcategory}` : ''}
+                    </p>
+                    <h4 className="text-xl font-black">{s.name}</h4>
+                    <p className="text-sm font-bold opacity-30">{s.price} — {s.duration_minutes} min</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingServiceId(s.id)
+                        setServiceForm({
+                          name: s.name,
+                          price: s.price,
+                          duration_minutes: s.duration_minutes,
+                          category: s.category || '',
+                          subcategory: s.subcategory || '',
+                        })
+                        setIsAddingService(true)
+                      }}
+                      className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center hover:bg-black hover:text-white transition-all text-black"
+                    >
+                      ✎
+                    </button>
+                    <button onClick={() => deleteItem('services', s.id)} className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

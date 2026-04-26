@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
         price: String(body?.price ?? '').trim(),
         duration_minutes: Number(body?.duration_minutes ?? 0),
         category: String(body?.category ?? '').trim(),
+        subcategory: String(body?.subcategory ?? '').trim() || null,
       }
 
       if (!payload.name || !payload.price || !Number.isFinite(payload.duration_minutes) || payload.duration_minutes <= 0) {
