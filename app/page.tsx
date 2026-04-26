@@ -276,32 +276,35 @@ export default function Home() {
     const end = addMinutes(start, totalDuration)
     const serviceNames = selectedServices.map(s => s.name).join(', ')
 
-    let error;
-
+    let bookingResponse: Response
     if (modifyingId) {
-      const { error: updateError } = await supabase.from('appointments').update({
-        start_time: start.toISOString(),
-        end_time: end.toISOString(),
-        service_id: selectedServices[0].id,
-        notes: serviceNames,
-        total_price: totalPrice
-      }).eq('id', modifyingId);
-      error = updateError;
+      bookingResponse = await fetch('/api/client/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update',
+          appointmentId: modifyingId,
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          notes: serviceNames,
+          totalPrice,
+        }),
+      })
     } else {
-      const { error: insertError } = await supabase.from('appointments').insert({
-        client_id: client.id,
-        client_name: client.full_name,
-        client_phone: client.phone,
-        start_time: start.toISOString(),
-        end_time: end.toISOString(),
-        status: 'confirmed',
-        notes: serviceNames,
-        total_price: totalPrice
-      });
-      error = insertError;
+      bookingResponse = await fetch('/api/client/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create',
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          notes: serviceNames,
+          totalPrice,
+        }),
+      })
     }
 
-    if (!error) {
+    if (bookingResponse.ok) {
       if (emailServiceId && emailTemplateId && emailPublicKey) {
         emailjs.send(
           emailServiceId,
@@ -328,15 +331,17 @@ export default function Home() {
     setIsJoiningWaitlist(true);
     const formattedDate = format(selectedDate, 'yyyy-MM-dd');
 
-    const { error } = await supabase.from('waitlist').insert({
-      client_id: client.id,
-      client_name: client.full_name,
-      client_phone: client.phone,
-      desired_date: formattedDate
-    });
+    const response = await fetch('/api/client/appointments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'join_waitlist',
+        desiredDate: formattedDate,
+      }),
+    })
 
     setIsJoiningWaitlist(false);
-    if (!error) {
+    if (response.ok) {
       setWaitlistJoinedDate(formattedDate);
     } else {
       alert('A apărut o eroare la adăugarea pe lista de așteptare. Te rog încearcă din nou.');
@@ -369,9 +374,15 @@ export default function Home() {
       if (!cancelReason || cancelReason.trim().length < 3) {
         return window.alert("Te rugăm să introduci un motiv valid pentru anulare.")
       }
-      // În loc să ștergem, o marcăm ca "Anulată" pentru a o afișa în istoric
-      const { error } = await supabase.from('appointments').update({ status: 'canceled' }).eq('id', cancelingApp.id)
-      if (error) throw error;
+      const response = await fetch('/api/client/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'cancel',
+          appointmentId: cancelingApp.id,
+        }),
+      })
+      if (!response.ok) throw new Error('Cancel failed')
       
       if (client?.id) fetchClientAppointments(client.id)
       fetchGlobalData()
@@ -384,12 +395,18 @@ export default function Home() {
 
   const submitReview = async () => {
     if (!reviewApp) return;
-    const { error } = await supabase.from('appointments').update({ 
-      rating: starRating, 
-      review_text: reviewText 
-    }).eq('id', reviewApp.id);
+    const response = await fetch('/api/client/appointments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'submit_review',
+        appointmentId: reviewApp.id,
+        rating: starRating,
+        reviewText,
+      }),
+    })
     
-    if (!error) {
+    if (response.ok) {
       setReviewModalOpen(false); 
       setReviewApp(null); 
       setReviewText(''); 
@@ -400,14 +417,16 @@ export default function Home() {
 
   const ratePhoto = async (photoId: string, rating: number) => {
     if (!client) return;
-    const existing = portfolioRatings.find(r => r.photo_id === photoId && r.client_id === client.id);
-    
-    if (existing) {
-      await supabase.from('portfolio_ratings').update({ rating }).eq('id', existing.id);
-    } else {
-      await supabase.from('portfolio_ratings').insert({ client_id: client.id, photo_id: photoId, rating });
-    }
-    fetchGlobalData();
+    const response = await fetch('/api/client/appointments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'rate_photo',
+        photoId,
+        rating,
+      }),
+    })
+    if (response.ok) fetchGlobalData();
   }
 
   const safeFormatDate = (dateString: string | undefined | null, fmt: string) => {
