@@ -14,6 +14,7 @@ import {
   resetClientLoginFailures,
 } from '@/lib/client-login-guard'
 import { logAuthAuditEvent } from '@/lib/auth-audit'
+import { trackAnalyticsEvent } from '@/lib/analytics'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -91,6 +92,11 @@ export async function POST(request: Request) {
       const response = NextResponse.json({ ok: true })
       clearSessionCookie(response)
       logAuthAuditEvent({ area: 'client', action: 'logout', outcome: 'success' })
+      void trackAnalyticsEvent({
+        eventName: 'client_logout',
+        category: 'auth',
+        metadata: { source: 'portal' },
+      }).catch(() => null)
       return response
     }
 
@@ -151,6 +157,12 @@ export async function POST(request: Request) {
       const response = NextResponse.json({ ok: true, client: data })
       setSessionCookie(response, buildClientSessionToken(data))
       logAuthAuditEvent({ area: 'client', action: 'register', outcome: 'success', phone, ip })
+      void trackAnalyticsEvent({
+        eventName: 'client_register_success',
+        category: 'auth',
+        clientId: data.id,
+        metadata: { phonePrefix: phone.slice(0, 3) },
+      }).catch(() => null)
       return response
     }
 
@@ -220,6 +232,12 @@ export async function POST(request: Request) {
       const response = NextResponse.json({ ok: true, client })
       setSessionCookie(response, buildClientSessionToken(client))
       logAuthAuditEvent({ area: 'client', action: 'login', outcome: 'success', phone, ip })
+      void trackAnalyticsEvent({
+        eventName: 'client_login_success',
+        category: 'auth',
+        clientId: client.id,
+        metadata: { phonePrefix: phone.slice(0, 3) },
+      }).catch(() => null)
       return response
     }
 

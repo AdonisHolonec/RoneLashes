@@ -1,0 +1,53 @@
+name: Preview Smoke Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "Optional URL to test (e.g. https://my-preview.vercel.app)"
+        required: false
+        type: string
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_URL: ${{ inputs.target_url }}
+
+    steps:
+      - name: Resolve target URL
+        id: resolve
+        shell: bash
+        run: |
+          URL="${TARGET_URL}"
+          if [ -z "$URL" ]; then
+            echo "No target_url provided. Using production alias."
+            URL="https://ronelashes.vercel.app"
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Testing URL: $URL"
+
+      - name: Check home page
+        run: |
+          curl -fsS "${{ steps.resolve.outputs.url }}/" > /dev/null
+
+      - name: Check admin login page
+        run: |
+          curl -fsS "${{ steps.resolve.outputs.url }}/login" > /dev/null
+
+      - name: Check client auth session endpoint
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.resolve.outputs.url }}/api/client/auth")
+          if [ "$STATUS" -ne 200 ]; then
+            echo "Expected 200 from /api/client/auth, got $STATUS"
+            exit 1
+          fi
+
+      - name: Check protected admin route redirects or loads
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.resolve.outputs.url }}/admin")
+          if [ "$STATUS" -ne 200 ] && [ "$STATUS" -ne 307 ] && [ "$STATUS" -ne 308 ]; then
+            echo "Expected 200/307/308 from /admin, got $STATUS"
+            exit 1
+          fi

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { format, parseISO, isSameDay, isAfter, isBefore, startOfMonth, endOfMonth, startOfYear, endOfYear, addMinutes } from 'date-fns'
 import { ro } from 'date-fns/locale'
@@ -12,17 +12,33 @@ import 'react-day-picker/dist/style.css'
 const daysMap = ['Duminică', 'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă']
 
 export default function AdminDashboard() {
+  type AnalyticsEvent = {
+    event_name: string
+    event_category: string
+    created_at: string
+  }
+
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'appointments' | 'services' | 'portfolio' | 'reviews' | 'finance' | 'settings'>('appointments')
+  const [activeTab, setActiveTab] = useState<'appointments' | 'services' | 'portfolio' | 'reviews' | 'finance' | 'settings' | 'analytics'>('appointments')
   
   // Date Bază
   const [appointments, setAppointments] = useState<any[]>([])
   const [services, setServices] = useState<any[]>([])
   const [photos, setPhotos] = useState<any[]>([])
+  const [hasMorePortfolio, setHasMorePortfolio] = useState(false)
+  const [portfolioPage, setPortfolioPage] = useState(0)
+  const [portfolioLoadingMore, setPortfolioLoadingMore] = useState(false)
   const [portfolioRatings, setPortfolioRatings] = useState<any[]>([])
+  const [reviews, setReviews] = useState<any[]>([])
+  const [hasMoreReviews, setHasMoreReviews] = useState(false)
+  const [reviewsPage, setReviewsPage] = useState(0)
+  const [reviewsLoadingMore, setReviewsLoadingMore] = useState(false)
   const [schedule, setSchedule] = useState<any[]>([]) 
   const [waitlist, setWaitlist] = useState<any[]>([]) 
   const [closures, setClosures] = useState<any[]>([]) 
+  const [analyticsEvents, setAnalyticsEvents] = useState<AnalyticsEvent[]>([])
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [analyticsRangeDays, setAnalyticsRangeDays] = useState<7 | 14 | 30>(14)
 
   // State-uri Agenda & Calendar
   const [selectedAgendaDate, setSelectedAgendaDate] = useState<Date>(new Date())
@@ -37,6 +53,8 @@ export default function AdminDashboard() {
 
   // Gestiune Portofoliu
   const [uploading, setUploading] = useState(false)
+  const PORTFOLIO_PAGE_SIZE = 20
+  const REVIEWS_PAGE_SIZE = 12
 
   // Gestiune Programare Manuală
   const [showManualBooking, setShowManualBooking] = useState(false)
@@ -70,6 +88,8 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchAdminData()
+    // fetchAdminData is intentionally triggered once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // --- FUNCTIE CAUTARE CLIENT DUPA TELEFON ---
@@ -94,26 +114,70 @@ export default function AdminDashboard() {
     searchClient();
   }, [manualForm.phone])
 
+  async function fetchPortfolioPage(page: number, append = false) {
+    const from = page * PORTFOLIO_PAGE_SIZE
+    const to = from + PORTFOLIO_PAGE_SIZE - 1
+    const { data } = await supabase
+      .from('portfolio')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, to)
+    const nextData = data || []
+    setHasMorePortfolio(nextData.length === PORTFOLIO_PAGE_SIZE)
+    setPortfolioPage(page)
+    setPhotos((prev) => (append ? [...prev, ...nextData] : nextData))
+  }
+
+  async function fetchReviewsPage(page: number, append = false) {
+    const from = page * REVIEWS_PAGE_SIZE
+    const to = from + REVIEWS_PAGE_SIZE - 1
+    const { data } = await supabase
+      .from('appointments')
+      .select('id, client_name, start_time, notes, rating, review_text')
+      .gt('rating', 0)
+      .order('start_time', { ascending: false })
+      .range(from, to)
+    const nextData = data || []
+    setHasMoreReviews(nextData.length === REVIEWS_PAGE_SIZE)
+    setReviewsPage(page)
+    setReviews((prev) => (append ? [...prev, ...nextData] : nextData))
+  }
+
+  async function fetchAnalyticsEvents(days: 7 | 14 | 30) {
+    setAnalyticsLoading(true)
+    try {
+      const response = await fetch(`/api/admin/analytics?days=${days}`, { method: 'GET' })
+      if (!response.ok) return
+      const payload = await response.json()
+      setAnalyticsEvents(payload?.events || [])
+    } finally {
+      setAnalyticsLoading(false)
+    }
+  }
+
   async function fetchAdminData() {
     setLoading(true)
     try {
-      const { data: a } = await supabase.from('appointments').select('*').order('start_time', { ascending: false })
-      const { data: s } = await supabase.from('services').select('*').order('category')
-      const { data: p } = await supabase.from('portfolio').select('*').order('created_at', { ascending: false })
-      const { data: pr } = await supabase.from('portfolio_ratings').select('*')
-      const { data: sched } = await supabase.from('working_hours').select('*').order('day_of_week', { ascending: true })
-      
-      const todayString = new Date().toISOString().split('T')[0];
-      const { data: w } = await supabase.from('waitlist').select('*').gte('desired_date', todayString).order('desired_date', { ascending: true })
-      const { data: c } = await supabase.from('salon_closures').select('*').gte('end_date', todayString).order('start_date', { ascending: true })
+      const todayString = new Date().toISOString().split('T')[0]
+      const [aRes, sRes, prRes, schedRes, wRes, cRes] = await Promise.all([
+        supabase
+          .from('appointments')
+          .select('id, start_time, end_time, status, client_name, client_phone, notes, total_price, rating, review_text')
+          .order('start_time', { ascending: false }),
+        supabase.from('services').select('*').order('category'),
+        supabase.from('portfolio_ratings').select('id, photo_id, client_id, rating'),
+        supabase.from('working_hours').select('*').order('day_of_week', { ascending: true }),
+        supabase.from('waitlist').select('*').gte('desired_date', todayString).order('desired_date', { ascending: true }),
+        supabase.from('salon_closures').select('*').gte('end_date', todayString).order('start_date', { ascending: true }),
+      ])
 
-      if (a) setAppointments(a)
-      if (s) setServices(s)
-      if (p) setPhotos(p)
-      if (pr) setPortfolioRatings(pr)
-      if (sched) setSchedule(sched)
-      if (w) setWaitlist(w)
-      if (c) setClosures(c)
+      if (aRes.data) setAppointments(aRes.data)
+      if (sRes.data) setServices(sRes.data)
+      if (prRes.data) setPortfolioRatings(prRes.data)
+      if (schedRes.data) setSchedule(schedRes.data)
+      if (wRes.data) setWaitlist(wRes.data)
+      if (cRes.data) setClosures(cRes.data)
+      await Promise.all([fetchPortfolioPage(0, false), fetchReviewsPage(0, false)])
     } catch (err) {
       console.error("Eroare incarcare date:", err)
     } finally {
@@ -303,11 +367,184 @@ export default function AdminDashboard() {
 
   const safeFormatDate = (dateString: string, fmt: string) => { try { return format(parseISO(dateString), fmt, { locale: ro }) } catch { return '' } }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-black/20 bg-[#fafafa]">RoneAdmin...</div>
+  const appointmentsForSelectedDate = useMemo(
+    () =>
+      appointments
+        .filter((a) => isSameDay(parseISO(a.start_time), selectedAgendaDate))
+        .sort((a, b) => a.start_time.localeCompare(b.start_time)),
+    [appointments, selectedAgendaDate]
+  )
+  const bookedDays = useMemo(
+    () =>
+      appointments
+        .filter((a) => a.status !== 'rejected' && a.status !== 'canceled' && a.client_phone !== '-')
+        .map((a) => parseISO(a.start_time)),
+    [appointments]
+  )
+  const disabledDaysOfWeek = useMemo(
+    () => schedule.filter((s) => s.is_day_off).map((s) => s.day_of_week),
+    [schedule]
+  )
+  const weekBookings = useMemo(
+    () => {
+      const now = new Date()
+      return appointments.filter((a) => {
+        const date = parseISO(a.start_time)
+        const diffDays = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)
+        return diffDays >= 0 && diffDays <= 7
+      }).length
+    },
+    [appointments]
+  )
+  const monthBookings = useMemo(
+    () => {
+      const now = new Date()
+      return appointments.filter((a) => {
+        const date = parseISO(a.start_time)
+        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
+      }).length
+    },
+    [appointments]
+  )
+  const currentMonthApps = useMemo(
+    () => {
+      const now = new Date()
+      return appointments.filter((a) => {
+        const date = parseISO(a.start_time)
+        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
+      })
+    },
+    [appointments]
+  )
+  const monthCancelRate = useMemo(() => {
+    if (currentMonthApps.length === 0) return 0
+    const canceled = currentMonthApps.filter((a) => a.status === 'canceled').length
+    return Math.round((canceled / currentMonthApps.length) * 100)
+  }, [currentMonthApps])
+  const analyticsDaily = useMemo(() => {
+    const days = analyticsRangeDays
+    const now = new Date()
+    const buckets = Array.from({ length: days }, (_, idx) => {
+      const day = new Date(now)
+      day.setDate(now.getDate() - (days - 1 - idx))
+      day.setHours(0, 0, 0, 0)
+      const dayKey = format(day, 'yyyy-MM-dd')
+      return { dayKey, label: format(day, 'dd MMM', { locale: ro }), bookings: 0, canceled: 0 }
+    })
 
-  const appointmentsForSelectedDate = appointments.filter(a => isSameDay(parseISO(a.start_time), selectedAgendaDate)).sort((a,b) => a.start_time.localeCompare(b.start_time))
-  const bookedDays = appointments.filter(a => a.status !== 'rejected' && a.status !== 'canceled' && a.client_phone !== '-').map(a => parseISO(a.start_time))
-  const disabledDaysOfWeek = schedule.filter(s => s.is_day_off).map(s => s.day_of_week);
+    const byKey = new Map(buckets.map((b) => [b.dayKey, b]))
+    appointments.forEach((app) => {
+      const date = parseISO(app.start_time)
+      const key = format(date, 'yyyy-MM-dd')
+      const bucket = byKey.get(key)
+      if (!bucket) return
+      bucket.bookings += 1
+      if (app.status === 'canceled') bucket.canceled += 1
+    })
+
+    return buckets
+  }, [appointments, analyticsRangeDays])
+  const analyticsMaxCount = useMemo(
+    () => Math.max(1, ...analyticsDaily.map((d) => Math.max(d.bookings, d.canceled))),
+    [analyticsDaily]
+  )
+  const eventFunnel = useMemo(() => {
+    const counts = {
+      client_login_success: 0,
+      booking_created: 0,
+      waitlist_joined: 0,
+      review_submitted: 0,
+      portfolio_rated: 0,
+    }
+    analyticsEvents.forEach((event) => {
+      const key = event.event_name as keyof typeof counts
+      if (key in counts) counts[key] += 1
+    })
+    return counts
+  }, [analyticsEvents])
+  const previousAnalyticsDaily = useMemo(() => {
+    const days = analyticsRangeDays
+    const now = new Date()
+    const startCurrent = new Date(now)
+    startCurrent.setDate(now.getDate() - (days - 1))
+    startCurrent.setHours(0, 0, 0, 0)
+    const startPrevious = new Date(startCurrent)
+    startPrevious.setDate(startPrevious.getDate() - days)
+
+    const buckets = Array.from({ length: days }, (_, idx) => {
+      const day = new Date(startPrevious)
+      day.setDate(startPrevious.getDate() + idx)
+      day.setHours(0, 0, 0, 0)
+      const dayKey = format(day, 'yyyy-MM-dd')
+      return { dayKey, bookings: 0, canceled: 0 }
+    })
+
+    const byKey = new Map(buckets.map((b) => [b.dayKey, b]))
+    appointments.forEach((app) => {
+      const date = parseISO(app.start_time)
+      if (date < startPrevious || date >= startCurrent) return
+      const key = format(date, 'yyyy-MM-dd')
+      const bucket = byKey.get(key)
+      if (!bucket) return
+      bucket.bookings += 1
+      if (app.status === 'canceled') bucket.canceled += 1
+    })
+    return buckets
+  }, [appointments, analyticsRangeDays])
+  const bookingsDeltaPct = useMemo(() => {
+    const current = analyticsDaily.reduce((acc, d) => acc + d.bookings, 0)
+    const previous = previousAnalyticsDaily.reduce((acc, d) => acc + d.bookings, 0)
+    if (previous === 0) return current > 0 ? 100 : 0
+    return Math.round(((current - previous) / previous) * 100)
+  }, [analyticsDaily, previousAnalyticsDaily])
+  const cancelsDeltaPct = useMemo(() => {
+    const current = analyticsDaily.reduce((acc, d) => acc + d.canceled, 0)
+    const previous = previousAnalyticsDaily.reduce((acc, d) => acc + d.canceled, 0)
+    if (previous === 0) return current > 0 ? 100 : 0
+    return Math.round(((current - previous) / previous) * 100)
+  }, [analyticsDaily, previousAnalyticsDaily])
+  const cancelRateDeltaPct = useMemo(() => {
+    const currentBookings = analyticsDaily.reduce((acc, d) => acc + d.bookings, 0)
+    const currentCancels = analyticsDaily.reduce((acc, d) => acc + d.canceled, 0)
+    const currentRate = currentBookings === 0 ? 0 : (currentCancels / currentBookings) * 100
+
+    const prevBookings = previousAnalyticsDaily.reduce((acc, d) => acc + d.bookings, 0)
+    const prevCancels = previousAnalyticsDaily.reduce((acc, d) => acc + d.canceled, 0)
+    const prevRate = prevBookings === 0 ? 0 : (prevCancels / prevBookings) * 100
+
+    return Math.round(currentRate - prevRate)
+  }, [analyticsDaily, previousAnalyticsDaily])
+  const formatDelta = (value: number) => (value > 0 ? `+${value}%` : `${value}%`)
+  const visiblePortfolioPhotos = useMemo(() => photos, [photos])
+  const visibleReviews = useMemo(() => reviews, [reviews])
+
+  const loadMorePortfolio = async () => {
+    if (!hasMorePortfolio || portfolioLoadingMore) return
+    setPortfolioLoadingMore(true)
+    try {
+      await fetchPortfolioPage(portfolioPage + 1, true)
+    } finally {
+      setPortfolioLoadingMore(false)
+    }
+  }
+
+  const loadMoreReviews = async () => {
+    if (!hasMoreReviews || reviewsLoadingMore) return
+    setReviewsLoadingMore(true)
+    try {
+      await fetchReviewsPage(reviewsPage + 1, true)
+    } finally {
+      setReviewsLoadingMore(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'analytics') {
+      fetchAnalyticsEvents(analyticsRangeDays)
+    }
+  }, [activeTab, analyticsRangeDays])
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-black/20 bg-[#fafafa]">RoneAdmin...</div>
 
   return (
     <div className="min-h-screen bg-[#fafafa] text-black font-sans flex flex-col md:flex-row relative">
@@ -317,7 +554,7 @@ export default function AdminDashboard() {
         <div>
           <h1 className="text-2xl md:text-3xl font-serif italic font-bold mb-8 md:mb-12 text-center md:text-left">RoneLashes</h1>
           <nav className="flex md:flex-col gap-2 overflow-x-auto no-scrollbar md:overflow-visible pb-4 md:pb-0">
-            {[ { id: 'appointments', label: '📅 Agenda' }, { id: 'settings', label: '⚙️ Program' }, { id: 'finance', label: '💰 Venituri' }, { id: 'services', label: '💅 Servicii' }, { id: 'portfolio', label: '📸 Portofoliu' }, { id: 'reviews', label: '⭐ Recenzii' } ].map((t: any) => (
+            {[ { id: 'appointments', label: '📅 Agenda' }, { id: 'settings', label: '⚙️ Program' }, { id: 'finance', label: '💰 Venituri' }, { id: 'analytics', label: '📈 Analytics' }, { id: 'services', label: '💅 Servicii' }, { id: 'portfolio', label: '📸 Portofoliu' }, { id: 'reviews', label: '⭐ Recenzii' } ].map((t: any) => (
               <button key={t.id} onClick={() => setActiveTab(t.id)} className={`px-5 md:px-8 py-3 md:py-5 rounded-2xl font-black uppercase text-[10px] md:text-[11px] tracking-widest transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-[#e21a6e] text-white shadow-xl scale-105' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}> {t.label} </button>
             ))}
             <button onClick={handleLogout} className="md:hidden px-5 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all bg-red-500/10 text-red-400">Deconectare</button>
@@ -337,6 +574,12 @@ export default function AdminDashboard() {
                 <div key={i} className="bg-white px-5 py-3 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
                   <p className="text-[9px] font-black uppercase opacity-40">{s.label}:</p>
                   <p className={`text-sm font-black ${s.color}`}>{s.val} RON</p>
+                </div>
+              ))}
+              {[{ label: 'Book 7 zile', val: weekBookings }, { label: 'Book lună', val: monthBookings }, { label: 'Anulări lună', val: `${monthCancelRate}%` }, { label: 'Waitlist', val: waitlist.length }].map((kpi, i) => (
+                <div key={`kpi-${i}`} className="bg-white px-5 py-3 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
+                  <p className="text-[9px] font-black uppercase opacity-40">{kpi.label}:</p>
+                  <p className="text-sm font-black text-black">{kpi.val}</p>
                 </div>
               ))}
               <div className="ml-auto flex gap-2 w-full md:w-auto mt-4 md:mt-0">
@@ -609,6 +852,99 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {activeTab === 'analytics' && (
+          <div className="animate-in fade-in duration-700">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-10">
+              <h2 className="text-4xl font-serif italic font-bold">Analytics Operațional</h2>
+              <div className="flex gap-2">
+                {[7, 14, 30].map((day) => (
+                  <button
+                    key={day}
+                    onClick={() => setAnalyticsRangeDays(day as 7 | 14 | 30)}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors ${analyticsRangeDays === day ? 'bg-black text-white' : 'bg-white border border-gray-200 text-black hover:border-black'}`}
+                  >
+                    {day}d
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Login Success</p>
+                <p className="text-2xl font-black mt-2">{eventFunnel.client_login_success}</p>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Booking Created</p>
+                <p className="text-2xl font-black mt-2">{eventFunnel.booking_created}</p>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Waitlist Joined</p>
+                <p className="text-2xl font-black mt-2">{eventFunnel.waitlist_joined}</p>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Reviews</p>
+                <p className="text-2xl font-black mt-2">{eventFunnel.review_submitted}</p>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Photo Ratings</p>
+                <p className="text-2xl font-black mt-2">{eventFunnel.portfolio_rated}</p>
+              </div>
+            </div>
+            <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-gray-100 shadow-sm mb-8">
+              <h3 className="text-xl font-black mb-2">Trend zilnic ultimele {analyticsRangeDays} zile</h3>
+              <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-8">Booking-uri vs anulări</p>
+              <div className="space-y-4">
+                {analyticsDaily.map((row) => (
+                  <div key={row.dayKey} className="grid grid-cols-[72px_1fr] gap-4 items-center">
+                    <p className="text-[10px] font-black uppercase opacity-40">{row.label}</p>
+                    <div className="space-y-1">
+                      <div className="h-4 rounded-full bg-gray-100 overflow-hidden">
+                        <div className="h-full bg-black rounded-full" style={{ width: `${(row.bookings / analyticsMaxCount) * 100}%` }} />
+                      </div>
+                      <div className="h-3 rounded-full bg-red-100 overflow-hidden">
+                        <div className="h-full bg-red-500 rounded-full" style={{ width: `${(row.canceled / analyticsMaxCount) * 100}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {analyticsLoading && (
+              <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-4">Se încarcă funnel-ul de evenimente...</p>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-6 rounded-2xl border border-gray-100">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Booking total {analyticsRangeDays} zile</p>
+                <p className="text-3xl font-black mt-3">{analyticsDaily.reduce((acc, d) => acc + d.bookings, 0)}</p>
+                <p className={`text-[10px] font-black uppercase mt-2 ${bookingsDeltaPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatDelta(bookingsDeltaPct)} vs perioada anterioară
+                </p>
+              </div>
+              <div className="bg-white p-6 rounded-2xl border border-gray-100">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Anulări total {analyticsRangeDays} zile</p>
+                <p className="text-3xl font-black mt-3 text-red-600">{analyticsDaily.reduce((acc, d) => acc + d.canceled, 0)}</p>
+                <p className={`text-[10px] font-black uppercase mt-2 ${cancelsDeltaPct <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatDelta(cancelsDeltaPct)} vs perioada anterioară
+                </p>
+              </div>
+              <div className="bg-white p-6 rounded-2xl border border-gray-100">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Rată anulări {analyticsRangeDays} zile</p>
+                <p className="text-3xl font-black mt-3">
+                  {(() => {
+                    const totalBookings = analyticsDaily.reduce((acc, d) => acc + d.bookings, 0)
+                    const totalCanceled = analyticsDaily.reduce((acc, d) => acc + d.canceled, 0)
+                    if (totalBookings === 0) return '0%'
+                    return `${Math.round((totalCanceled / totalBookings) * 100)}%`
+                  })()}
+                </p>
+                <p className={`text-[10px] font-black uppercase mt-2 ${cancelRateDeltaPct <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {cancelRateDeltaPct > 0 ? `+${cancelRateDeltaPct}pp` : `${cancelRateDeltaPct}pp`} vs perioada anterioară
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'services' && (
           <div className="animate-in fade-in duration-700">
             <div className="flex justify-between items-center mb-16"><h2 className="text-4xl font-serif italic font-bold">Management Servicii</h2><button onClick={() => { setIsAddingService(true); setEditingServiceId(null); setServiceForm({name:'', price:'', duration_minutes:60, category:''}) }} className="bg-black text-white px-10 py-5 rounded-[2rem] text-[11px] font-black uppercase shadow-xl hover:bg-gray-800 transition-colors">+ Adaugă Nou</button></div>
@@ -618,11 +954,81 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === 'portfolio' && (
-          <div className="animate-in fade-in"><div className="flex justify-between items-center mb-16"><h2 className="text-4xl font-serif italic font-bold">Portofoliu & Rating</h2><label className="bg-black text-white px-10 py-5 rounded-[2rem] text-[11px] font-black uppercase cursor-pointer shadow-xl hover:bg-[#e21a6e] transition-all">{uploading ? 'Se încarcă...' : '+ Încarcă Lucrare'}<input type="file" hidden accept="image/*" onChange={handleUpload} disabled={uploading} /></label></div><div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">{photos.map(p => { const ratings = portfolioRatings.filter(r => r.photo_id === p.id); const avg = ratings.length > 0 ? (ratings.reduce((acc, r) => acc + r.rating, 0) / ratings.length).toFixed(1) : '0.0'; return ( <div key={p.id} className="group relative aspect-square rounded-[3rem] overflow-hidden border-4 border-white shadow-md hover:shadow-2xl transition-all"><Image src={p.url} alt="Lucrare portofoliu" fill sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw" className="object-cover transition-transform group-hover:scale-125 duration-700" /><div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-6 text-center text-white"><p className="font-black text-sm mb-4">⭐ {avg}</p><button onClick={() => deleteItem('portfolio', p.id)} className="bg-red-50 text-white px-6 py-3 rounded-xl text-[9px] font-black uppercase shadow-xl hover:bg-red-600 transition-colors">Șterge</button></div></div> ) })}</div></div>
+          <div className="animate-in fade-in">
+            <div className="flex justify-between items-center mb-16">
+              <h2 className="text-4xl font-serif italic font-bold">Portofoliu & Rating</h2>
+              <label className="bg-black text-white px-10 py-5 rounded-[2rem] text-[11px] font-black uppercase cursor-pointer shadow-xl hover:bg-[#e21a6e] transition-all">
+                {uploading ? 'Se încarcă...' : '+ Încarcă Lucrare'}
+                <input type="file" hidden accept="image/*" onChange={handleUpload} disabled={uploading} />
+              </label>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
+              {visiblePortfolioPhotos.map((p) => {
+                const ratings = portfolioRatings.filter((r) => r.photo_id === p.id)
+                const avg =
+                  ratings.length > 0
+                    ? (ratings.reduce((acc, r) => acc + r.rating, 0) / ratings.length).toFixed(1)
+                    : '0.0'
+                return (
+                  <div key={p.id} className="group relative aspect-square rounded-[3rem] overflow-hidden border-4 border-white shadow-md hover:shadow-2xl transition-all">
+                    <Image src={p.url} alt="Lucrare portofoliu" fill sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw" className="object-cover transition-transform group-hover:scale-125 duration-700" />
+                    <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-6 text-center text-white">
+                      <p className="font-black text-sm mb-4">⭐ {avg}</p>
+                      <button onClick={() => deleteItem('portfolio', p.id)} className="bg-red-50 text-white px-6 py-3 rounded-xl text-[9px] font-black uppercase shadow-xl hover:bg-red-600 transition-colors">Șterge</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {hasMorePortfolio && (
+              <div className="mt-8 flex justify-center">
+                <button
+                  onClick={loadMorePortfolio}
+                  disabled={portfolioLoadingMore}
+                  className="px-8 py-4 bg-black text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#e21a6e] transition-colors disabled:opacity-50"
+                >
+                  {portfolioLoadingMore ? 'Se încarcă...' : 'Încarcă mai multe'}
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {activeTab === 'reviews' && (
-          <div className="animate-in fade-in duration-700"><h2 className="text-4xl font-serif italic font-bold mb-16 text-black">Recenzii Cliente ⭐</h2><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 text-black">{appointments.filter(a => a.rating > 0).map(rev => ( <div key={rev.id} className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-[#e21a6e]/10 relative group hover:shadow-xl transition-all text-black"><div className="absolute top-0 left-0 w-2 h-full bg-[#e21a6e] opacity-20 group-hover:opacity-100 transition-opacity"></div><div className="flex justify-between items-start mb-6"><div><h4 className="font-black text-xl leading-tight">{rev.client_name}</h4><p className="text-[10px] font-black opacity-30 mt-1 tracking-widest">{safeFormatDate(rev.start_time, 'dd MMMM yyyy')}</p></div><div className="bg-yellow-50 px-4 py-2 rounded-2xl flex items-center gap-2 border border-yellow-200"><span className="text-yellow-600 font-black text-lg">{rev.rating}</span><span className="text-yellow-400 text-sm">★</span></div></div><p className="text-[10px] font-black uppercase text-[#e21a6e] mb-3">{rev.notes}</p><p className="text-sm italic font-medium text-black/70 leading-relaxed mb-6">&quot;{rev.review_text || 'Fără mesaj.'}&quot;</p><button onClick={() => { if(confirm("Vrei să ștergi recenzia?")) supabase.from('appointments').update({ rating: 0, review_text: null }).eq('id', rev.id).then(() => fetchAdminData()) }} className="text-[10px] font-black uppercase opacity-20 hover:opacity-100 transition-opacity text-red-600">Resetare Recenzie</button></div> ))}</div></div>
+          <div className="animate-in fade-in duration-700">
+            <h2 className="text-4xl font-serif italic font-bold mb-16 text-black">Recenzii Cliente ⭐</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 text-black">
+              {visibleReviews.map((rev) => (
+                <div key={rev.id} className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-[#e21a6e]/10 relative group hover:shadow-xl transition-all text-black">
+                  <div className="absolute top-0 left-0 w-2 h-full bg-[#e21a6e] opacity-20 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <h4 className="font-black text-xl leading-tight">{rev.client_name}</h4>
+                      <p className="text-[10px] font-black opacity-30 mt-1 tracking-widest">{safeFormatDate(rev.start_time, 'dd MMMM yyyy')}</p>
+                    </div>
+                    <div className="bg-yellow-50 px-4 py-2 rounded-2xl flex items-center gap-2 border border-yellow-200">
+                      <span className="text-yellow-600 font-black text-lg">{rev.rating}</span>
+                      <span className="text-yellow-400 text-sm">★</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] font-black uppercase text-[#e21a6e] mb-3">{rev.notes}</p>
+                  <p className="text-sm italic font-medium text-black/70 leading-relaxed mb-6">&quot;{rev.review_text || 'Fără mesaj.'}&quot;</p>
+                  <button onClick={() => { if(confirm("Vrei să ștergi recenzia?")) supabase.from('appointments').update({ rating: 0, review_text: null }).eq('id', rev.id).then(() => fetchAdminData()) }} className="text-[10px] font-black uppercase opacity-20 hover:opacity-100 transition-opacity text-red-600">Resetare Recenzie</button>
+                </div>
+              ))}
+            </div>
+            {hasMoreReviews && (
+              <div className="mt-8 flex justify-center">
+                <button
+                  onClick={loadMoreReviews}
+                  disabled={reviewsLoadingMore}
+                  className="px-8 py-4 bg-black text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#e21a6e] transition-colors disabled:opacity-50"
+                >
+                  {reviewsLoadingMore ? 'Se încarcă...' : 'Încarcă mai multe'}
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

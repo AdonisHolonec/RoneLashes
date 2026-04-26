@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getClientAuthCookieName, verifyClientSessionToken } from '@/lib/client-auth'
+import { trackAnalyticsEvent } from '@/lib/analytics'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -54,6 +55,12 @@ export async function POST(request: NextRequest) {
       if (error) {
         return NextResponse.json({ error: 'Programarea nu a putut fi salvată.' }, { status: 400 })
       }
+      void trackAnalyticsEvent({
+        eventName: 'booking_created',
+        category: 'booking',
+        clientId: session.id,
+        metadata: { totalPrice, notesLength: notes.length },
+      }).catch(() => null)
       return NextResponse.json({ ok: true })
     }
 
@@ -91,6 +98,12 @@ export async function POST(request: NextRequest) {
       if (error) {
         return NextResponse.json({ error: 'Programarea nu a putut fi modificată.' }, { status: 400 })
       }
+      void trackAnalyticsEvent({
+        eventName: 'booking_updated',
+        category: 'booking',
+        clientId: session.id,
+        metadata: { totalPrice, notesLength: notes.length },
+      }).catch(() => null)
       return NextResponse.json({ ok: true })
     }
 
@@ -118,6 +131,11 @@ export async function POST(request: NextRequest) {
       if (error) {
         return NextResponse.json({ error: 'Programarea nu a putut fi anulată.' }, { status: 400 })
       }
+      void trackAnalyticsEvent({
+        eventName: 'booking_canceled',
+        category: 'booking',
+        clientId: session.id,
+      }).catch(() => null)
       return NextResponse.json({ ok: true })
     }
 
@@ -137,6 +155,12 @@ export async function POST(request: NextRequest) {
       if (error) {
         return NextResponse.json({ error: 'Nu am putut adăuga în lista de așteptare.' }, { status: 400 })
       }
+      void trackAnalyticsEvent({
+        eventName: 'waitlist_joined',
+        category: 'booking',
+        clientId: session.id,
+        metadata: { desiredDate },
+      }).catch(() => null)
       return NextResponse.json({ ok: true })
     }
 
@@ -167,6 +191,12 @@ export async function POST(request: NextRequest) {
       if (error) {
         return NextResponse.json({ error: 'Recenzia nu a putut fi salvată.' }, { status: 400 })
       }
+      void trackAnalyticsEvent({
+        eventName: 'review_submitted',
+        category: 'engagement',
+        clientId: session.id,
+        metadata: { rating },
+      }).catch(() => null)
       return NextResponse.json({ ok: true })
     }
 
@@ -192,6 +222,12 @@ export async function POST(request: NextRequest) {
         if (error) {
           return NextResponse.json({ error: 'Nu am putut actualiza ratingul.' }, { status: 400 })
         }
+        void trackAnalyticsEvent({
+          eventName: 'portfolio_rated',
+          category: 'engagement',
+          clientId: session.id,
+          metadata: { rating, action: 'update' },
+        }).catch(() => null)
         return NextResponse.json({ ok: true })
       }
 
@@ -203,6 +239,12 @@ export async function POST(request: NextRequest) {
       if (error) {
         return NextResponse.json({ error: 'Nu am putut salva ratingul.' }, { status: 400 })
       }
+      void trackAnalyticsEvent({
+        eventName: 'portfolio_rated',
+        category: 'engagement',
+        clientId: session.id,
+        metadata: { rating, action: 'insert' },
+      }).catch(() => null)
       return NextResponse.json({ ok: true })
     }
 

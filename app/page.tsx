@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { DayPicker } from 'react-day-picker'
 import { ro } from 'date-fns/locale'
@@ -116,27 +116,31 @@ export default function Home() {
       clearInterval(reviewsInterval)
       clearInterval(portfolioInterval)
     }
-  }, [view, appointments, photos])
+  }, [view])
 
   async function fetchGlobalData() {
-    const { data: s } = await supabase.from('services').select('*')
-    const { data: a } = await supabase.from('appointments').select('*')
-    const { data: p } = await supabase.from('portfolio').select('*').order('created_at', { ascending: false })
-    const { data: pr } = await supabase.from('portfolio_ratings').select('*')
-    const { data: sched } = await supabase.from('working_hours').select('*') 
-    
-    // Luăm concediile valide din baza de date
-    const todayString = new Date().toISOString().split('T')[0];
-    const { data: c } = await supabase.from('salon_closures').select('*').gte('end_date', todayString)
-    
-    if (s) setServices(s)
-    if (a) setAppointments(a)
-    if (p) setPhotos(p)
-    if (pr) setPortfolioRatings(pr)
-    if (sched) setSchedule(sched)
-    if (c) setClosures(c)
-    
-    setLoading(false)
+    try {
+      const todayString = new Date().toISOString().split('T')[0]
+      const [sRes, aRes, pRes, prRes, schedRes, cRes] = await Promise.all([
+        supabase.from('services').select('*'),
+        supabase
+          .from('appointments')
+          .select('id, start_time, end_time, status, notes, total_price, rating, review_text, client_name, services(*)'),
+        supabase.from('portfolio').select('*').order('created_at', { ascending: false }),
+        supabase.from('portfolio_ratings').select('id, photo_id, client_id, rating'),
+        supabase.from('working_hours').select('*'),
+        supabase.from('salon_closures').select('*').gte('end_date', todayString),
+      ])
+
+      if (sRes.data) setServices(sRes.data)
+      if (aRes.data) setAppointments(aRes.data)
+      if (pRes.data) setPhotos(pRes.data)
+      if (prRes.data) setPortfolioRatings(prRes.data)
+      if (schedRes.data) setSchedule(schedRes.data)
+      if (cRes.data) setClosures(cRes.data)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function fetchClientAppointments(clientId: string) {
@@ -240,23 +244,30 @@ export default function Home() {
     const end = parseInt(closeH) * 60 + parseInt(closeM)
     
     const slots = []
+    const bookedRanges = appointments
+      .filter((app) => {
+        if (app.status === 'rejected' || app.status === 'canceled') return false
+        if (modifyingId && app.id === modifyingId) return false
+        return isSameDay(parseISO(app.start_time), date)
+      })
+      .map((app) => ({
+        startMs: parseISO(app.start_time).getTime(),
+        endMs: parseISO(app.end_time).getTime(),
+      }))
     
     for (let curr = start; curr <= end - duration; curr += 30) {
       const h = Math.floor(curr / 60).toString().padStart(2, '0')
       const m = (curr % 60).toString().padStart(2, '0')
       const sStart = new Date(date); sStart.setHours(parseInt(h), parseInt(m), 0, 0)
       const sEnd = addMinutes(sStart, duration)
+      const sStartMs = sStart.getTime()
+      const sEndMs = sEnd.getTime()
       
       if (isToday && sStart.getTime() < now.getTime()) {
         continue;
       }
 
-      const isOcc = appointments.some(app => {
-        if (app.status === 'rejected' || app.status === 'canceled') return false
-        if (modifyingId && app.id === modifyingId) return false
-        const aS = parseISO(app.start_time); const aE = parseISO(app.end_time)
-        return isBefore(sStart, aE) && isAfter(sEnd, aS)
-      })
+      const isOcc = bookedRanges.some((range) => sStartMs < range.endMs && sEndMs > range.startMs)
       
       if (!isOcc) slots.push(`${h}:${m}`)
     }
@@ -429,6 +440,25 @@ export default function Home() {
     if (response.ok) fetchGlobalData();
   }
 
+  const reviewedAppointments = useMemo(
+    () =>
+      appointments
+        .filter((a) => a.rating >= 4 && a.review_text)
+        .sort((a, b) => b.start_time.localeCompare(a.start_time))
+        .slice(0, 8),
+    [appointments]
+  )
+
+  const futureAppointments = useMemo(
+    () => myAppointments.filter((a) => isAfter(parseISO(a.start_time), new Date())),
+    [myAppointments]
+  )
+
+  const pastAppointments = useMemo(
+    () => myAppointments.filter((a) => isBefore(parseISO(a.start_time), new Date())),
+    [myAppointments]
+  )
+
   const safeFormatDate = (dateString: string | undefined | null, fmt: string) => {
     if (!dateString) return '';
     try { 
@@ -522,16 +552,12 @@ export default function Home() {
           </div>
 
           {/* SECȚIUNE CARUSEL RECENZII CU AUTO-SCROLL */}
-          {appointments.filter(a => a.rating >= 4 && a.review_text).length > 0 && (
+          {reviewedAppointments.length > 0 && (
             <div className="w-full max-w-md mt-14 animate-in fade-in">
               <h3 className="text-2xl font-serif italic font-bold text-black text-center mb-6">Părerile Clientelor ✨</h3>
               
               <div ref={reviewsRef} className="flex gap-4 overflow-x-auto pb-6 snap-x px-6 -mx-6 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                {appointments
-                  .filter(a => a.rating >= 4 && a.review_text)
-                  .sort((a, b) => b.start_time.localeCompare(a.start_time)) 
-                  .slice(0, 8) 
-                  .map(rev => (
+                {reviewedAppointments.map(rev => (
                   <div key={rev.id} className="min-w-[260px] max-w-[260px] bg-white/90 p-6 rounded-[2rem] shadow-lg border border-white/40 snap-center shrink-0 whitespace-normal text-left">
                     <div className="flex justify-between items-start mb-3">
                       <div>
@@ -617,8 +643,8 @@ export default function Home() {
             <div>
               <h3 className="text-[11px] font-black uppercase opacity-40 mb-4 tracking-widest px-2 text-black">Programări Viitoare</h3>
               <div className="space-y-4">
-                {myAppointments.filter(a => isAfter(parseISO(a.start_time), new Date())).length > 0 ? (
-                  myAppointments.filter(a => isAfter(parseISO(a.start_time), new Date())).map(app => (
+                {futureAppointments.length > 0 ? (
+                  futureAppointments.map(app => (
                     <div key={app.id} className={`bg-white p-6 rounded-[2.5rem] shadow-md border-2 ${app.status === 'rejected' ? 'border-red-100 opacity-60' : app.status === 'canceled' ? 'border-gray-200 opacity-60' : 'border-gray-100'}`}>
                       <div className="flex justify-between items-start mb-4">
                         <div>
@@ -651,7 +677,7 @@ export default function Home() {
             <div>
               <h3 className="text-[11px] font-black uppercase opacity-40 mb-4 tracking-widest px-2 text-black">Istoric Vizite</h3>
               <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-                {myAppointments.filter(a => isBefore(parseISO(a.start_time), new Date())).length > 0 ? myAppointments.filter(a => isBefore(parseISO(a.start_time), new Date())).map((app, i) => (
+                {pastAppointments.length > 0 ? pastAppointments.map((app, i) => (
                   <div key={app.id} className={`p-5 flex flex-col ${i !== 0 ? 'border-t border-gray-50' : ''} ${app.status === 'rejected' || app.status === 'canceled' ? 'opacity-60' : ''}`}>
                     <div className="flex justify-between items-center">
                       <div>
