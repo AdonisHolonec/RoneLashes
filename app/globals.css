@@ -1,8 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fff8fb;
+  --foreground: #1f1721;
+  --surface-1: #ffffff;
+  --surface-2: #fff2f8;
+  --surface-muted: #f8f4f7;
+  --accent-1: #e21a6e;
+  --accent-1-soft: #ffd7e8;
+  --border-soft: #f0dfe7;
+  --shadow-soft: 0 14px 40px rgba(226, 26, 110, 0.08);
+  --shadow-card: 0 8px 24px rgba(31, 23, 33, 0.08);
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.75rem;
+  --radius-3xl: 2.25rem;
 }
 
 @theme inline {
@@ -14,13 +25,120 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #171117;
+    --foreground: #f9eaf1;
+    --surface-1: #241a24;
+    --surface-2: #2c1f2c;
+    --surface-muted: #332534;
+    --accent-1: #ff4d94;
+    --accent-1-soft: #4b2738;
+    --border-soft: #4a3647;
+    --shadow-soft: none;
+    --shadow-card: none;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+.ui-shell {
+  max-width: 1200px;
+  margin-inline: auto;
+}
+
+.ui-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-card);
+}
+
+.ui-card-soft {
+  background: var(--surface-2);
+  border: 1px solid var(--accent-1-soft);
+  border-radius: var(--radius-2xl);
+}
+
+.ui-input {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  background: var(--surface-muted);
+  border: 2px solid transparent;
+  border-radius: 1rem;
+  font-weight: 700;
+  transition: border-color 0.2s ease;
+}
+
+.ui-input:focus {
+  outline: none;
+  border-color: var(--accent-1);
+}
+
+.ui-input:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent-1) 24%, transparent);
+  outline-offset: 2px;
+}
+
+.ui-btn {
+  border-radius: var(--radius-xl);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: transform 0.18s ease, opacity 0.18s ease, background-color 0.18s ease;
+}
+
+.ui-btn:hover {
+  transform: translateY(-1px);
+}
+
+.ui-btn:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent-1) 24%, transparent);
+  outline-offset: 2px;
+}
+
+.ui-btn:active {
+  transform: translateY(0);
+}
+
+.ui-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
+.ui-btn-primary {
+  background: var(--accent-1);
+  color: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.ui-btn-primary:hover {
+  opacity: 0.94;
+}
+
+.ui-btn-ghost {
+  background: var(--surface-1);
+  border: 1px solid var(--border-soft);
+  color: var(--foreground);
+}
+
+.ui-btn-ghost:hover {
+  background: var(--surface-muted);
+}
+
+.ui-section-title {
+  font-size: clamp(1.5rem, 2vw, 2rem);
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+.ui-meta {
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.5;
 }

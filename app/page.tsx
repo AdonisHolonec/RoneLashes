@@ -505,11 +505,11 @@ export default function Home() {
   if (loading) return <div className="min-h-screen flex items-center justify-center font-black opacity-20 uppercase tracking-widest text-black bg-[#fafafa]">RoneLashes...</div>
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-black font-sans pb-10 relative overflow-x-hidden">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] font-sans pb-10 relative overflow-x-hidden">
       
       {/* 1. ECRAN LOGIN / REGISTER & PRIMA PAGINĂ */}
       {view === 'auth' && (
-        <div className="min-h-screen flex flex-col items-center justify-between py-12 px-6 text-center bg-gradient-to-br from-[#fce4ec] to-[#f8bbd0]">
+        <div className="min-h-screen flex flex-col items-center justify-between py-12 px-6 text-center bg-gradient-to-br from-[#fff5fa] to-[#ffe9f3]">
           <div className="w-full flex flex-col items-center animate-in fade-in">
             <p className="text-[11px] font-black tracking-[0.4em] uppercase opacity-70 mb-4 text-black">Lash & Make-up Artist</p>
             <Image
@@ -539,7 +539,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="bg-white p-8 rounded-[3rem] shadow-2xl w-full max-w-sm border border-white/20 animate-in zoom-in">
+          <div className="ui-card p-8 rounded-[2.25rem] w-full max-w-sm animate-in zoom-in">
             <h2 className="text-2xl font-serif italic font-bold mb-2 text-black">Portal Cliente</h2>
             <p className="text-[10px] font-black uppercase opacity-40 mb-6 tracking-widest text-black">
               {isRegistering ? 'Creează un cont nou' : 'Loghează-te în cont'}
@@ -549,7 +549,7 @@ export default function Home() {
               {isRegistering && (
                 <input 
                   placeholder="Numele tău complet" 
-                  className="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-center text-black" 
+                  className="ui-input text-center text-black" 
                   value={fullName} 
                   onChange={e => setFullName(e.target.value)} 
                 />
@@ -557,7 +557,7 @@ export default function Home() {
               <input 
                 type="tel" 
                 placeholder="Număr Telefon" 
-                className="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-center text-black" 
+                className="ui-input text-center text-black" 
                 value={phone} 
                 onChange={e => setPhone(e.target.value.replace(/\D/g, ''))} 
               />
@@ -565,12 +565,12 @@ export default function Home() {
                 type="password" 
                 maxLength={4} 
                 placeholder="PIN 4 Cifre" 
-                className="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-center text-2xl tracking-[1em] text-black" 
+                className="ui-input text-center text-2xl tracking-[1em] text-black" 
                 value={pin} 
                 onChange={e => setPin(e.target.value.replace(/\D/g, ''))} 
               />
               
-              <button disabled={authSubmitting} onClick={handleAuth} className="w-full py-5 bg-black text-white font-black rounded-3xl shadow-xl uppercase text-xs tracking-widest active:scale-95 transition-all disabled:opacity-50">
+              <button disabled={authSubmitting} onClick={handleAuth} className="ui-btn ui-btn-primary w-full py-5 text-xs tracking-widest active:scale-95 disabled:opacity-50">
                 {authSubmitting ? 'Se procesează...' : isRegistering ? 'Creează Cont' : 'Intră în Cont'}
               </button>
               
@@ -638,15 +638,15 @@ export default function Home() {
       {/* 2. DASHBOARD CLIENTA */}
       {view === 'dashboard' && (
         <div className="animate-in fade-in duration-500">
-          <div className="p-8 bg-black text-white rounded-b-[4rem] shadow-2xl mb-8 flex justify-between items-center">
+          <div className="p-8 bg-gradient-to-r from-[#1f1721] to-[#2a1c2b] text-white rounded-b-[3rem] shadow-2xl mb-8 flex justify-between items-center">
             <div>
               <p className="text-[10px] font-black uppercase opacity-40 mb-1">Bună,</p>
               <h2 className="text-2xl font-serif italic font-bold">{client?.full_name}</h2>
             </div>
-            <button onClick={handleLogout} className="p-3 bg-white/10 rounded-2xl text-[10px] font-black uppercase hover:bg-white/20 transition-all">Ieșire</button>
+            <button onClick={handleLogout} className="ui-btn p-3 bg-white/10 rounded-2xl text-[10px] font-black uppercase hover:bg-white/20 transition-all">Ieșire</button>
           </div>
 
-          <div className="px-6 max-w-md mx-auto space-y-8">
+          <div className="px-6 max-w-md mx-auto space-y-8 ui-shell">
             <button 
               onClick={() => { 
                 setModifyingId(null); 
@@ -657,18 +657,18 @@ export default function Home() {
                 setStep(1); 
                 setView('booking'); 
               }} 
-              className="w-full py-6 bg-[#e21a6e] text-white font-black rounded-[2.5rem] shadow-xl uppercase tracking-[0.2em] text-sm hover:scale-105 transition-transform"
+              className="ui-btn ui-btn-primary w-full py-6 rounded-[2.2rem] uppercase tracking-[0.2em] text-sm hover:scale-105"
             >
               + Programare Nouă
             </button>
 
             {/* AFTERCARE CARD */}
-            <div className="bg-white p-6 rounded-[2.5rem] shadow-md border-2 border-gray-100 flex items-center justify-between">
+            <div className="ui-card p-6 rounded-[2.2rem] flex items-center justify-between">
               <div>
                 <h4 className="font-serif italic font-bold text-lg text-black">Îngrijire Gene ✨</h4>
                 <p className="text-[9px] font-black uppercase opacity-40 tracking-widest text-black">Ghid pentru rezistență maximă</p>
               </div>
-              <button onClick={() => setShowAftercare(true)} className="px-5 py-3 bg-black text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-gray-800 transition-all">
+              <button onClick={() => setShowAftercare(true)} className="ui-btn px-5 py-3 bg-black text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-gray-800 transition-all">
                 Vezi Ghid
               </button>
             </div>
@@ -887,7 +887,7 @@ export default function Home() {
 
       {/* 3. PROCES PROGRAMARE & MODIFICARE */}
       {view === 'booking' && (
-        <div className="p-6 max-w-md mx-auto animate-in slide-in-from-bottom-10 duration-500">
+        <div className="p-6 max-w-md mx-auto animate-in slide-in-from-bottom-10 duration-500 ui-shell">
           <button 
             onClick={() => { setModifyingId(null); setView('dashboard') }} 
             className="mb-6 text-[10px] font-black uppercase opacity-40 hover:opacity-100 transition-all text-black"
@@ -895,7 +895,7 @@ export default function Home() {
             ← Înapoi la cont
           </button>
           
-          <div className="bg-white p-8 rounded-[3rem] shadow-2xl border border-gray-100">
+          <div className="ui-card p-8 rounded-[2.25rem]">
             
             {step === 1 && (
               <div className="space-y-4">

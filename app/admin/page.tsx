@@ -279,8 +279,17 @@ export default function AdminDashboard() {
         return
       }
 
-      const { error } = await supabase.from(table).delete().eq('id', id)
-      if (!error) fetchAdminData()
+      const response = await fetch('/api/admin/resources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', table, id }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        alert(payload?.error || 'Elementul nu a putut fi șters.')
+        return
+      }
+      fetchAdminData()
     }
   }
 
@@ -749,57 +758,57 @@ export default function AdminDashboard() {
   if (loading) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-black/20 bg-[#fafafa]">RoneAdmin...</div>
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-black font-sans flex flex-col md:flex-row relative">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] font-sans flex flex-col md:flex-row relative">
       
       {/* SIDEBAR */}
-      <div className="w-full md:w-72 bg-black text-white p-6 md:p-10 flex flex-col justify-between rounded-b-[2.5rem] md:rounded-b-none md:rounded-r-[3.5rem] shadow-2xl z-30">
+      <div className="w-full md:w-72 bg-gradient-to-b from-[#1f1721] to-[#2c1f2c] text-white p-6 md:p-10 flex flex-col justify-between rounded-b-[2.5rem] md:rounded-b-none md:rounded-r-[3.5rem] shadow-2xl z-30">
         <div>
           <h1 className="text-2xl md:text-3xl font-serif italic font-bold mb-8 md:mb-12 text-center md:text-left">RoneLashes</h1>
           <nav className="flex md:flex-col gap-2 overflow-x-auto no-scrollbar md:overflow-visible pb-4 md:pb-0">
             {[ { id: 'appointments', label: '📅 Agenda' }, { id: 'settings', label: '⚙️ Program' }, { id: 'finance', label: '💰 Venituri' }, { id: 'analytics', label: '📈 Analytics' }, { id: 'services', label: '💅 Servicii' }, { id: 'portfolio', label: '📸 Portofoliu' }, { id: 'reviews', label: '⭐ Recenzii' } ].map((t: any) => (
-              <button key={t.id} onClick={() => setActiveTab(t.id)} className={`px-5 md:px-8 py-3 md:py-5 rounded-2xl font-black uppercase text-[10px] md:text-[11px] tracking-widest transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-[#e21a6e] text-white shadow-xl scale-105' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}> {t.label} </button>
+              <button key={t.id} onClick={() => setActiveTab(t.id)} className={`ui-btn px-5 md:px-8 py-3 md:py-5 rounded-2xl font-black uppercase text-[10px] md:text-[11px] tracking-widest transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-[#e21a6e] text-white shadow-xl scale-105' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}> {t.label} </button>
             ))}
             <button onClick={handleLogout} className="md:hidden px-5 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all bg-red-500/10 text-red-400">Deconectare</button>
           </nav>
         </div>
-        <button onClick={handleLogout} className="hidden md:block py-5 bg-white/5 rounded-2xl text-[11px] font-black uppercase hover:bg-white/10 transition-all">Deconectare</button>
+        <button onClick={handleLogout} className="hidden md:block ui-btn py-5 bg-white/5 rounded-2xl text-[11px] font-black uppercase hover:bg-white/10 transition-all">Deconectare</button>
       </div>
 
       {/* CONTINUT PRINCIPAL */}
-      <div className="flex-1 p-4 md:p-10 overflow-y-auto no-scrollbar">
+      <div className="flex-1 p-4 md:p-10 overflow-y-auto no-scrollbar ui-shell">
         
         {activeTab === 'appointments' && (
           <div className="animate-in fade-in duration-700">
             {/* Statistici */}
             <div className="flex flex-wrap gap-3 mb-8">
               {[ { label: 'Azi', val: calculateIncome('today'), color: 'text-green-600' }, { label: 'Luna', val: calculateIncome('month'), color: 'text-[#e21a6e]' }, { label: 'An', val: calculateIncome('year'), color: 'text-black' } ].map((s, i) => (
-                <div key={i} className="bg-white px-5 py-3 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
+                <div key={i} className="ui-card px-5 py-3 rounded-2xl flex items-center gap-3">
                   <p className="text-[9px] font-black uppercase opacity-40">{s.label}:</p>
                   <p className={`text-sm font-black ${s.color}`}>{s.val} RON</p>
                 </div>
               ))}
               {[{ label: 'Book 7 zile', val: weekBookings }, { label: 'Book lună', val: monthBookings }, { label: 'Anulări lună', val: `${monthCancelRate}%` }, { label: 'Waitlist', val: waitlist.length }].map((kpi, i) => (
-                <div key={`kpi-${i}`} className="bg-white px-5 py-3 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
+                <div key={`kpi-${i}`} className="ui-card px-5 py-3 rounded-2xl flex items-center gap-3">
                   <p className="text-[9px] font-black uppercase opacity-40">{kpi.label}:</p>
                   <p className="text-sm font-black text-black">{kpi.val}</p>
                 </div>
               ))}
               <div className="ml-auto flex gap-2 w-full md:w-auto mt-4 md:mt-0">
-                <button onClick={() => setShowPauseModal(true)} className="flex-1 md:flex-none bg-gray-200 text-black px-6 py-3 rounded-2xl font-black uppercase text-[10px] shadow-sm hover:bg-gray-300 transition-all">☕ Pauză</button>
-                <button onClick={() => setShowManualBooking(true)} className="flex-1 md:flex-none bg-black text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] shadow-lg hover:bg-gray-800 transition-all">+ Programare</button>
+                <button onClick={() => setShowPauseModal(true)} className="ui-btn flex-1 md:flex-none bg-gray-200 text-black px-6 py-3 rounded-2xl font-black uppercase text-[10px] shadow-sm hover:bg-gray-300 transition-all">☕ Pauză</button>
+                <button onClick={() => setShowManualBooking(true)} className="ui-btn ui-btn-primary flex-1 md:flex-none px-6 py-3 rounded-2xl font-black uppercase text-[10px] shadow-lg">+ Programare</button>
               </div>
             </div>
 
             {/* Waitlist */}
             {waitlist.length > 0 && (
-              <div className="mb-8 p-6 bg-[#fff5f8] border border-[#e21a6e]/20 rounded-[2.5rem] shadow-sm animate-in fade-in">
+              <div className="mb-8 p-6 ui-card-soft rounded-[2.5rem] shadow-sm animate-in fade-in">
                 <h3 className="text-xl font-serif italic font-bold mb-4 flex items-center gap-2 text-black">⏳ Lista de Așteptare <span className="bg-[#e21a6e] text-white text-[10px] px-3 py-1 rounded-full not-italic">{waitlist.length}</span></h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {waitlist.map(w => {
                      let cleanPhone = w.client_phone.trim(); if (cleanPhone.startsWith('0')) cleanPhone = cleanPhone.substring(1);
                      const msg = `Bună, ${w.client_name}! S-a eliberat un loc la gene pentru data de ${format(parseISO(w.desired_date), 'dd MMMM', { locale: ro })}. Ai dori să te programez? ✨`;
                      return (
-                      <div key={w.id} className="bg-white p-5 rounded-3xl flex justify-between items-center shadow-sm border border-[#e21a6e]/10">
+                      <div key={w.id} className="ui-card p-5 rounded-3xl flex justify-between items-center">
                         <div><p className="font-black text-sm text-black">{w.client_name}</p><p className="text-[10px] font-black uppercase text-[#e21a6e] tracking-widest">{format(parseISO(w.desired_date), 'dd MMMM yyyy', { locale: ro })}</p></div>
                         <div className="flex gap-2">
                           <a href={`https://wa.me/40${cleanPhone}?text=${encodeURIComponent(msg)}`} target="_blank" rel="noopener noreferrer" className="bg-[#25D366] text-white w-10 h-10 rounded-2xl flex items-center justify-center shadow-md">💬</a>
@@ -814,7 +823,7 @@ export default function AdminDashboard() {
 
             <div className="flex flex-col lg:flex-row gap-8">
               {/* Calendar Agenda */}
-              <div className="bg-white p-4 rounded-[2.5rem] shadow-sm border border-gray-100 h-fit mx-auto lg:mx-0">
+              <div className="ui-card p-4 rounded-[2.5rem] h-fit mx-auto lg:mx-0">
                 <DayPicker mode="single" selected={selectedAgendaDate} onSelect={(d) => d && setSelectedAgendaDate(d)} locale={ro} modifiers={{ booked: bookedDays }} modifiersClassNames={{ booked: 'rdp-day_booked' }} className="admin-calendar" />
                 <div className="mt-4 flex items-center justify-center gap-2 border-t pt-4">
                    <div className="w-3 h-3 rounded-full border-2 border-[#e21a6e]"></div>
@@ -884,7 +893,7 @@ export default function AdminDashboard() {
                       </div>
                     )
                   }) : (
-                    <div className="py-20 text-center bg-white rounded-[3rem] border-2 border-dashed border-gray-100">
+                    <div className="py-20 text-center ui-card rounded-[3rem] border-2 border-dashed border-gray-100">
                       <p className="font-serif italic opacity-30">Nicio programare găsită.</p>
                     </div>
                   )}
