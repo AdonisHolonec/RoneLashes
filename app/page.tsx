@@ -887,7 +887,7 @@ export default function Home() {
 
       {/* 3. PROCES PROGRAMARE & MODIFICARE */}
       {view === 'booking' && (
-        <div className="p-6 max-w-md mx-auto animate-in slide-in-from-bottom-10 duration-500 ui-shell">
+        <div className="p-6 max-w-md mx-auto animate-in slide-in-from-bottom-10 duration-500 ui-shell min-h-[calc(100dvh-2.5rem)] flex flex-col">
           <button 
             onClick={() => { setModifyingId(null); setView('dashboard') }} 
             className="mb-6 text-[10px] font-black uppercase opacity-40 hover:opacity-100 transition-all text-black"
@@ -895,12 +895,12 @@ export default function Home() {
             ← Înapoi la cont
           </button>
           
-          <div className="ui-card p-8 rounded-[2.25rem]">
+          <div className="ui-card p-8 rounded-[2.25rem] flex-1 flex flex-col min-h-0">
             
             {step === 1 && (
-              <div className="space-y-4">
+              <div className="space-y-4 flex-1 flex flex-col min-h-0">
                 <h2 className="text-2xl font-serif italic font-bold text-center mb-6 text-black">{modifyingId ? 'Modifică Serviciile' : 'Ce servicii dorești?'}</h2>
-                <div className="max-h-[50vh] overflow-y-auto space-y-2 pr-2">
+                <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-2">
                   {categories.map(cat => (
                     <div key={cat} className="border-b border-gray-100 pb-2">
                       <button 
