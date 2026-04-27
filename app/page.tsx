@@ -502,7 +502,7 @@ export default function Home() {
     }
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-black opacity-20 uppercase tracking-widest text-black bg-[#fafafa]">RoneLashes...</div>
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-black opacity-20 uppercase tracking-widest text-[var(--foreground)] bg-[var(--background)]">RoneLashes...</div>
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] font-sans pb-10 relative overflow-x-hidden">
@@ -679,7 +679,7 @@ export default function Home() {
               <div className="space-y-4">
                 {futureAppointments.length > 0 ? (
                   futureAppointments.map(app => (
-                    <div key={app.id} className={`bg-white p-6 rounded-[2.5rem] shadow-md border-2 ${app.status === 'rejected' ? 'border-red-100 opacity-60' : app.status === 'canceled' ? 'border-gray-200 opacity-60' : 'border-gray-100'}`}>
+                    <div key={app.id} className={`ui-card p-6 rounded-[2.2rem] border-2 ${app.status === 'rejected' ? 'border-red-100 opacity-60' : app.status === 'canceled' ? 'border-gray-200 opacity-60' : 'border-[var(--border-soft)]'}`}>
                       <div className="flex justify-between items-start mb-4">
                         <div>
                           <div className="flex items-center gap-2 mb-1">
@@ -695,7 +695,7 @@ export default function Home() {
                       {/* Butoanele de modificare/anulare apar doar daca programarea este activa */}
                       {app.status !== 'rejected' && app.status !== 'canceled' && (
                         <div className="flex gap-2">
-                          <button onClick={() => handleModify(app)} className="flex-1 py-3 bg-gray-100 text-black rounded-2xl text-[10px] font-black uppercase hover:bg-black hover:text-white transition-all">Modifică</button>
+                          <button onClick={() => handleModify(app)} className="ui-btn flex-1 py-3 bg-[var(--surface-muted)] text-black rounded-2xl text-[10px] font-black uppercase hover:bg-black hover:text-white transition-all">Modifică</button>
                           <button onClick={() => startCancelProcess(app)} className="flex-1 py-3 bg-red-50 text-red-500 rounded-2xl text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all">Anulează</button>
                         </div>
                       )}
@@ -710,7 +710,7 @@ export default function Home() {
             {/* Istoric Vizite & RECENZII */}
             <div>
               <h3 className="text-[11px] font-black uppercase opacity-40 mb-4 tracking-widest px-2 text-black">Istoric Vizite</h3>
-              <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+              <div className="ui-card rounded-[2.2rem] overflow-hidden">
                 {pastAppointments.length > 0 ? pastAppointments.map((app, i) => (
                   <div key={app.id} className={`p-5 flex flex-col ${i !== 0 ? 'border-t border-gray-50' : ''} ${app.status === 'rejected' || app.status === 'canceled' ? 'opacity-60' : ''}`}>
                     <div className="flex justify-between items-center">
@@ -728,7 +728,7 @@ export default function Home() {
                     {/* Sistem de Evaluare Vizita apare DOAR daca vizita nu e refuzata sau anulata */}
                     {app.status !== 'rejected' && app.status !== 'canceled' && (
                       app.rating > 0 ? (
-                         <div className="mt-3 bg-[#fff5f8] p-3 rounded-2xl border border-[#e21a6e]/10">
+                         <div className="mt-3 ui-card-soft p-3 rounded-2xl">
                             <div className="flex text-yellow-400 text-xs mb-1">
                                 {"★".repeat(app.rating)}{"☆".repeat(5 - app.rating)}
                             </div>
@@ -762,7 +762,7 @@ export default function Home() {
                     const myRating = photoRatings.find(r => r.client_id === client?.id)?.rating || 0;
 
                     return (
-                      <div key={p.id} className="min-w-[160px] max-w-[160px] relative aspect-square rounded-3xl overflow-hidden shadow-sm border border-gray-100 group snap-center shrink-0">
+                      <div key={p.id} className="min-w-[160px] max-w-[160px] relative aspect-square rounded-3xl overflow-hidden shadow-sm border border-[var(--border-soft)] group snap-center shrink-0">
                         <Image
                           src={p.url}
                           alt="Portofoliu"
@@ -800,7 +800,7 @@ export default function Home() {
       {/* MODAL RECENZIE VIZITĂ */}
       {reviewModalOpen && reviewApp && (
         <div className="fixed inset-0 bg-black/80 z-[100] p-6 flex items-center justify-center backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl border-4 border-gray-100 text-center">
+          <div className="ui-card w-full max-w-sm rounded-[2.5rem] p-8 text-center">
             <h3 className="text-2xl font-serif italic font-bold text-black mb-2">Evaluează experiența</h3>
             <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-6 text-black">
               Vizita din {safeFormatDate(reviewApp.start_time, 'dd MMMM yyyy')}
@@ -820,20 +820,20 @@ export default function Home() {
 
             <textarea 
               placeholder="Cum ți s-a părut rezultatul? (Opțional)"
-              className="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-black outline-none focus:border-[#e21a6e]/30 min-h-[100px] mb-6 resize-none text-sm"
+              className="ui-input min-h-[100px] mb-6 resize-none text-sm text-black"
               value={reviewText}
               onChange={(e) => setReviewText(e.target.value)}
             />
 
             <button 
               onClick={submitReview} 
-              className="w-full py-5 bg-[#e21a6e] text-white font-black rounded-2xl uppercase text-[10px] tracking-widest shadow-xl mb-3 hover:opacity-90 transition-all"
+              className="ui-btn ui-btn-primary w-full py-5 font-black rounded-2xl uppercase text-[10px] tracking-widest mb-3 hover:opacity-90 transition-all"
             >
               Trimite Recenzia
             </button>
             <button 
               onClick={() => { setReviewModalOpen(false); setReviewApp(null); }} 
-              className="w-full py-4 bg-gray-100 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-200 transition-all"
+              className="ui-btn w-full py-4 bg-[var(--surface-muted)] text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-200 transition-all"
             >
               Închide
             </button>
@@ -844,7 +844,7 @@ export default function Home() {
       {/* MODAL AFTERCARE */}
       {showAftercare && (
         <div className="fixed inset-0 bg-black/80 z-[100] p-6 flex items-center justify-center backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white w-full max-w-md rounded-[3rem] p-8 relative max-h-[85vh] overflow-y-auto shadow-2xl border-4 border-[#e21a6e]/10">
+          <div className="ui-card w-full max-w-md rounded-[2.5rem] p-8 relative max-h-[85vh] overflow-y-auto">
             <button 
               onClick={() => setShowAftercare(false)} 
               className="absolute top-6 right-6 w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center font-black text-black hover:bg-gray-200 transition-colors"
@@ -865,7 +865,7 @@ export default function Home() {
                 { icon: '❌🧴', t: 'Fără Produse pe Bază de Ulei', d: 'Uleiul dizolvă adezivul. Verifică demachiantul și cremele de ochi să fie "Oil-Free".' },
                 { icon: '🙅‍♀️👁️', t: 'Nu trage de ele', d: 'Nu smulge, nu trage și nu freca ochii. Dacă vrei să le dai jos, vino la salon pentru o îndepărtare sigură.' }
               ].map((item, idx) => (
-                <div key={idx} className="flex gap-4 items-start p-4 bg-gray-50 rounded-3xl">
+                <div key={idx} className="flex gap-4 items-start p-4 bg-[var(--surface-muted)] rounded-3xl border border-[var(--border-soft)]">
                   <span className="text-2xl">{item.icon}</span>
                   <div>
                     <h5 className="font-black text-xs uppercase text-black mb-1">{item.t}</h5>
@@ -877,7 +877,7 @@ export default function Home() {
 
             <button 
               onClick={() => setShowAftercare(false)} 
-              className="w-full mt-8 py-5 bg-black text-white font-black rounded-2xl uppercase text-[10px] tracking-[0.2em] shadow-xl hover:bg-gray-800 transition-colors"
+              className="ui-btn w-full mt-8 py-5 bg-black text-white font-black rounded-2xl uppercase text-[10px] tracking-[0.2em] shadow-xl hover:bg-gray-800 transition-colors"
             >
               Am înțeles, mulțumesc!
             </button>
@@ -925,7 +925,7 @@ export default function Home() {
                                 <button
                                   key={s.id}
                                   onClick={() => toggleService(s)}
-                                  className={`w-full flex justify-between items-center p-4 my-1 rounded-2xl border-2 transition-all ${isSel ? 'border-[#e21a6e] bg-[#fff5f8]' : 'border-gray-50 bg-gray-50 hover:border-gray-200'}`}
+                                  className={`w-full flex justify-between items-center p-4 my-1 rounded-2xl border-2 transition-all ${isSel ? 'border-[#e21a6e] bg-[#fff5f8]' : 'border-[var(--border-soft)] bg-[var(--surface-muted)] hover:border-gray-200'}`}
                                 >
                                   <div className="text-left">
                                     <p className="font-bold text-sm text-black">{isSel && '✓ '}{s.name}</p>
@@ -943,7 +943,7 @@ export default function Home() {
                 {selectedServices.length > 0 && (
                   <button 
                     onClick={() => setStep(2)} 
-                    className="w-full py-5 bg-black text-white font-black rounded-2xl uppercase text-[11px] mt-4 shadow-lg hover:opacity-90 transition-all"
+                    className="ui-btn ui-btn-primary w-full py-5 font-black rounded-2xl uppercase text-[11px] mt-4 shadow-lg hover:opacity-90 transition-all"
                   >
                     Continuă ({totalPrice} RON)
                   </button>
@@ -954,7 +954,7 @@ export default function Home() {
             {step === 2 && (
               <div className="space-y-6">
                 <h2 className="text-2xl font-serif italic font-bold text-center text-black">Alege Data</h2>
-                <div className="bg-gray-50 p-2 rounded-3xl flex justify-center border border-gray-100 shadow-inner">
+                <div className="bg-[var(--surface-muted)] p-2 rounded-3xl flex justify-center border border-[var(--border-soft)] shadow-inner">
                   <DayPicker 
                     mode="single" 
                     selected={selectedDate} 
@@ -976,7 +976,7 @@ export default function Home() {
                       <button 
                         key={t} 
                         onClick={() => { setSelectedTime(t); setStep(3); }} 
-                        className="py-3 bg-gray-100 rounded-xl font-black text-xs hover:bg-black hover:text-white transition-all text-black"
+                        className="ui-btn py-3 bg-[var(--surface-muted)] rounded-xl font-black text-xs hover:bg-black hover:text-white transition-all text-black"
                       >
                         {t}
                       </button>
@@ -1013,7 +1013,7 @@ export default function Home() {
 
             {step === 3 && (
               <div className="space-y-8 text-center">
-                <div className="p-8 bg-[#fff5f8] rounded-[2.5rem] border border-[#e21a6e]/10">
+                <div className="p-8 ui-card-soft rounded-[2.5rem]">
                     <p className="text-[10px] font-black uppercase text-[#e21a6e] mb-2">{modifyingId ? 'Confirmare Modificare' : 'Confirmare Finală'}</p>
                     <p className="text-xl font-serif italic font-bold text-black">{format(selectedDate!, 'EEEE, dd MMMM', { locale: ro })}</p>
                     <p className="text-4xl font-black my-2 text-black">ora {selectedTime}</p>
@@ -1021,7 +1021,7 @@ export default function Home() {
                 </div>
                 <button 
                   onClick={handleBooking} 
-                  className="w-full py-5 bg-black text-white font-black rounded-3xl uppercase text-xs tracking-widest shadow-2xl hover:bg-[#e21a6e] transition-colors"
+                  className="ui-btn ui-btn-primary w-full py-5 font-black rounded-3xl uppercase text-xs tracking-widest shadow-2xl hover:bg-[#e21a6e] transition-colors"
                 >
                   {modifyingId ? 'Salvează Modificarea ✨' : 'Confirmă Programarea ✨'}
                 </button>
@@ -1039,8 +1039,8 @@ export default function Home() {
 
       {/* --- ECRAN 1: FORMULAR ANULARE --- */}
       {view === 'cancel' && (
-        <div className="min-h-screen flex items-center justify-center p-4 bg-[#fafafa] text-black text-center font-sans">
-          <div className="w-full max-w-md bg-white p-10 rounded-[3rem] shadow-2xl border border-red-100 animate-in zoom-in">
+        <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--background)] text-black text-center font-sans">
+          <div className="ui-card w-full max-w-md p-10 rounded-[2.5rem] border border-red-100 animate-in zoom-in">
             <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl font-black">!</div>
             <h2 className="text-2xl font-serif italic font-bold text-black mb-2">Anulare Programare</h2>
             <p className="text-[10px] font-black uppercase text-[#e21a6e] tracking-widest mb-6">
@@ -1049,7 +1049,7 @@ export default function Home() {
             
             <textarea 
               placeholder="Te rog să ne scrii motivul anulării..."
-              className="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-black outline-none focus:border-red-300 min-h-[100px] mb-6 resize-none"
+              className="ui-input min-h-[100px] mb-6 resize-none text-black"
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
             />
@@ -1062,7 +1062,7 @@ export default function Home() {
             </button>
             <button 
               onClick={() => { setCancelingApp(null); setView('dashboard') }} 
-              className="w-full py-4 bg-gray-100 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-200 transition-all"
+              className="ui-btn w-full py-4 bg-[var(--surface-muted)] text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-200 transition-all"
             >
               M-am răzgândit. Păstrez.
             </button>
@@ -1072,8 +1072,8 @@ export default function Home() {
 
       {/* --- ECRAN 2: SUCCES ANULARE --- */}
       {view === 'cancel_success' && (
-        <div className="min-h-screen flex items-center justify-center p-4 bg-[#fafafa] text-black text-center font-sans">
-          <div className="w-full max-w-md bg-white p-10 rounded-[3rem] shadow-2xl border border-gray-100 animate-in zoom-in">
+        <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--background)] text-black text-center font-sans">
+          <div className="ui-card w-full max-w-md p-10 rounded-[2.5rem] animate-in zoom-in">
             <div className="w-20 h-20 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-8 text-3xl">✓</div>
             <h2 className="text-2xl font-serif italic font-bold text-black mb-4">Programare Anulată</h2>
             <p className="text-black/60 font-bold mb-8 text-sm">
@@ -1089,7 +1089,7 @@ export default function Home() {
 
             <button 
               onClick={() => { setCancelingApp(null); setCancelReason(''); setView('dashboard') }} 
-              className="w-full py-4 bg-gray-50 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-200 transition-all"
+              className="ui-btn w-full py-4 bg-[var(--surface-muted)] text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-200 transition-all"
             >
               2. M-am întors, du-mă la cont
             </button>
@@ -1099,8 +1099,8 @@ export default function Home() {
 
       {/* --- ECRAN SUCCES PROGRAMARE --- */}
       {view === 'success' && (
-        <div className="min-h-screen flex items-center justify-center p-4 bg-[#fce4ec] text-black text-center font-sans">
-          <div className="w-full max-w-md bg-white p-10 rounded-[3rem] shadow-2xl animate-in zoom-in">
+        <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-[#fff5fa] to-[#ffe9f3] text-black text-center font-sans">
+          <div className="ui-card w-full max-w-md p-10 rounded-[2.5rem] animate-in zoom-in">
             <div className="w-20 h-20 bg-black text-white rounded-full flex items-center justify-center mx-auto mb-8 text-3xl">✓</div>
             <h2 className="text-3xl font-black mb-4 italic font-serif text-black">{modifyingId ? 'Modificare salvată!' : 'Te aștept cu drag! ✨'}</h2>
             <p className="text-black/60 font-bold mb-8 text-black">
@@ -1119,7 +1119,7 @@ export default function Home() {
                  setModifyingId(null); setSelectedServices([]); setSelectedDate(undefined); setSelectedTime(null); setWaitlistJoinedDate(null); setStep(1);
                  setView('dashboard');
               }} 
-              className="w-full py-4 bg-gray-100 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-200 transition-all"
+              className="ui-btn w-full py-4 bg-[var(--surface-muted)] text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-200 transition-all"
             >
               2. M-am întors, du-mă la cont
             </button>

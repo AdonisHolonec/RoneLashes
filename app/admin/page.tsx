@@ -755,7 +755,7 @@ export default function AdminDashboard() {
     }
   }, [activeTab, analyticsRangeDays])
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-black/20 bg-[#fafafa]">RoneAdmin...</div>
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-black/20 bg-[var(--background)]">RoneAdmin...</div>
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] font-sans flex flex-col md:flex-row relative">
@@ -864,7 +864,7 @@ export default function AdminDashboard() {
                     }
 
                     return (
-                      <div key={app.id} className={`bg-white p-5 md:p-6 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 group hover:shadow-xl transition-all ${isRejected ? 'bg-red-50/30 border-red-100' : isCanceled ? 'bg-gray-50/50' : ''}`}>
+                      <div key={app.id} className={`ui-card p-5 md:p-6 rounded-[2.5rem] shadow-sm border border-[var(--border-soft)] flex flex-col md:flex-row justify-between items-start md:items-center gap-4 group hover:shadow-xl transition-all ${isRejected ? 'bg-red-50/30 border-red-100' : isCanceled ? 'bg-gray-50/50' : ''}`}>
                         <div className={`flex items-center gap-5 ${isRejected || isCanceled ? 'opacity-50' : ''}`}>
                           <div className="bg-gray-50 h-14 w-14 rounded-2xl flex flex-col items-center justify-center border border-gray-100">
                             <p className="text-lg font-black">{format(parseISO(app.start_time), 'HH:mm')}</p>
@@ -906,13 +906,13 @@ export default function AdminDashboard() {
         {/* MODAL PROGRAMARE MANUALĂ ACTUALIZATĂ (FĂRĂ SUPRAPUNERI) */}
         {showManualBooking && (
           <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in">
-            <div className="bg-white w-full max-w-xl rounded-[3rem] p-8 md:p-12 relative shadow-2xl border-4 border-black overflow-y-auto max-h-[90vh]">
+            <div className="ui-card w-full max-w-xl rounded-[2.5rem] p-8 md:p-12 relative overflow-y-auto max-h-[90vh]">
               <button onClick={() => { setShowManualBooking(false); setIsExistingClient(false); }} className="absolute top-8 right-8 w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center font-black text-black hover:bg-gray-200">✕</button>
               <h3 className="text-2xl font-serif italic font-bold mb-8 text-black text-center">Programare Manuală</h3>
               <div className="space-y-4 mb-8 text-black">
-                <input placeholder="Telefon Clientă" className="w-full p-4 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none" value={manualForm.phone} onChange={e => setManualForm({...manualForm, phone: e.target.value})} />
-                <input placeholder="Nume Clientă" className={`w-full p-4 bg-gray-50 rounded-2xl font-bold border-2 ${isExistingClient ? 'border-green-500' : 'border-transparent'} focus:border-black outline-none`} value={manualForm.name} onChange={e => setManualForm({...manualForm, name: e.target.value})} />
-                <select className="w-full p-4 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none" value={manualForm.serviceId} onChange={e => setManualForm({...manualForm, serviceId: e.target.value, time: ''})}>
+                <input placeholder="Telefon Clientă" className="ui-input" value={manualForm.phone} onChange={e => setManualForm({...manualForm, phone: e.target.value})} />
+                <input placeholder="Nume Clientă" className={`ui-input ${isExistingClient ? 'border-green-500' : ''}`} value={manualForm.name} onChange={e => setManualForm({...manualForm, name: e.target.value})} />
+                <select className="ui-input" value={manualForm.serviceId} onChange={e => setManualForm({...manualForm, serviceId: e.target.value, time: ''})}>
                   <option value="">1. Alege Serviciul...</option>
                   {services.map(s => <option key={s.id} value={s.id}>{s.name} — {s.price}</option>)}
                 </select>
@@ -949,7 +949,7 @@ export default function AdminDashboard() {
               <button 
                 onClick={handleManualBooking} 
                 disabled={!manualForm.time} 
-                className="w-full py-5 bg-[#e21a6e] text-white font-black rounded-3xl uppercase tracking-widest shadow-xl hover:bg-black transition-colors disabled:opacity-30"
+                className="ui-btn ui-btn-primary w-full py-5 font-black rounded-3xl uppercase tracking-widest shadow-xl hover:bg-black transition-colors disabled:opacity-30"
               >
                 Salvează & WhatsApp
               </button>
@@ -960,12 +960,12 @@ export default function AdminDashboard() {
         {/* MODAL PAUZĂ ACTUALIZATĂ (FĂRĂ SUPRAPUNERI) */}
         {showPauseModal && (
           <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in">
-            <div className="bg-white w-full max-w-lg rounded-[3rem] p-8 md:p-12 relative shadow-2xl border-4 border-gray-100 overflow-y-auto max-h-[90vh]">
+            <div className="ui-card w-full max-w-lg rounded-[2.5rem] p-8 md:p-12 relative overflow-y-auto max-h-[90vh]">
               <button onClick={() => setShowPauseModal(false)} className="absolute top-8 right-8 w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center font-black text-black hover:bg-gray-200">✕</button>
               <h3 className="text-2xl font-serif italic font-bold mb-8 text-black text-center">☕ Blochează Ore (Pauză)</h3>
               <div className="space-y-4 mb-8 text-black">
-                <input placeholder="Motiv (ex: Pauză de masă)" className="w-full p-4 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none" value={pauseForm.note} onChange={e => setPauseForm({...pauseForm, note: e.target.value})} />
-                <select className="w-full p-4 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none" value={pauseForm.duration} onChange={e => setPauseForm({...pauseForm, duration: parseInt(e.target.value), time: ''})}>
+                <input placeholder="Motiv (ex: Pauză de masă)" className="ui-input" value={pauseForm.note} onChange={e => setPauseForm({...pauseForm, note: e.target.value})} />
+                <select className="ui-input" value={pauseForm.duration} onChange={e => setPauseForm({...pauseForm, duration: parseInt(e.target.value), time: ''})}>
                   <option value={30}>Durată: 30 Minute</option>
                   <option value={60}>Durată: 1 Oră</option>
                   <option value={120}>Durată: 2 Ore</option>
@@ -995,7 +995,7 @@ export default function AdminDashboard() {
               <button 
                 onClick={handleSavePause} 
                 disabled={!pauseForm.time} 
-                className="w-full py-5 bg-black text-white font-black rounded-3xl uppercase tracking-widest shadow-xl disabled:opacity-30"
+                className="ui-btn ui-btn-primary w-full py-5 font-black rounded-3xl uppercase tracking-widest shadow-xl disabled:opacity-30"
               >
                 Salvează Pauza
               </button>
@@ -1007,10 +1007,10 @@ export default function AdminDashboard() {
         {activeTab === 'settings' && (
           <div className="animate-in fade-in duration-700">
             <h2 className="text-4xl font-serif italic font-bold mb-10 text-black">Setări Program de Lucru</h2>
-            <div className="bg-white p-6 md:p-10 rounded-[3.5rem] shadow-sm border border-gray-100 space-y-4 mb-10">
+            <div className="ui-card p-6 md:p-10 rounded-[3rem] space-y-4 mb-10">
               <h3 className="text-xl font-black mb-4">Program Săptămânal Fix</h3>
               {schedule.length > 0 ? schedule.map((item, index) => (
-                <div key={item.id} className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 md:p-6 bg-gray-50 rounded-[2.5rem] border border-gray-100 hover:border-[#e21a6e]/30 transition-colors">
+                <div key={item.id} className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 md:p-6 bg-[var(--surface-muted)] rounded-[2.5rem] border border-[var(--border-soft)] hover:border-[#e21a6e]/30 transition-colors">
                   <span className="w-32 text-lg font-black uppercase text-[#e21a6e] tracking-widest">{daysMap[item.day_of_week]}</span>
                   <div className="flex items-center gap-3 w-full md:w-auto">
                     <input type="time" value={item.open_time} disabled={item.is_day_off} onChange={(e) => { const newSched = [...schedule]; newSched[index].open_time = e.target.value; setSchedule(newSched); }} className="p-3 bg-white rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none disabled:opacity-30 shadow-sm w-full md:w-auto text-center" />
@@ -1021,25 +1021,25 @@ export default function AdminDashboard() {
                     <input type="checkbox" checked={item.is_day_off} onChange={(e) => { const newSched = [...schedule]; newSched[index].is_day_off = e.target.checked; setSchedule(newSched); }} className="w-6 h-6 accent-[#e21a6e] rounded-md" />
                     <span className="font-black text-[11px] uppercase tracking-widest opacity-40">Închis</span>
                   </label>
-                  <button onClick={() => handleUpdateSchedule(item)} className="w-full md:w-auto bg-black text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-[#e21a6e] transition-all shadow-md"> Salvează </button>
+                  <button onClick={() => handleUpdateSchedule(item)} className="ui-btn ui-btn-primary w-full md:w-auto px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-[#e21a6e] transition-all shadow-md"> Salvează </button>
                 </div>
               )) : ( <div className="py-8 text-center"><p className="font-serif italic opacity-30 mb-2">Nu s-au găsit setări de program.</p></div> )}
             </div>
 
-            <div className="bg-white p-6 md:p-10 rounded-[3.5rem] shadow-sm border border-gray-100 mb-10">
+            <div className="ui-card p-6 md:p-10 rounded-[3rem] mb-10">
               <h3 className="text-xl font-black mb-6">Ordine categorii/subcategorii (portal client)</h3>
               <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-4">
                 Separă valorile prin virgulă
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <textarea
-                  className="w-full p-4 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none min-h-[120px]"
+                  className="ui-input min-h-[120px]"
                   value={categoryOrderInput}
                   onChange={(e) => setCategoryOrderInput(e.target.value)}
                   placeholder="Volum, Efect, Întreținere, Laminare, Sprâncene"
                 />
                 <textarea
-                  className="w-full p-4 bg-gray-50 rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none min-h-[120px]"
+                  className="ui-input min-h-[120px]"
                   value={subcategoryOrderInput}
                   onChange={(e) => setSubcategoryOrderInput(e.target.value)}
                   placeholder="Natural, Soft, Medium, Intens, Mega Volum"
@@ -1048,16 +1048,16 @@ export default function AdminDashboard() {
               <div className="mt-6 flex justify-end">
                 <button
                   onClick={handleSaveServiceOrderConfig}
-                  className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#e21a6e] transition-all shadow-md"
+                  className="ui-btn ui-btn-primary px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#e21a6e] transition-all shadow-md"
                 >
                   Salvează ordinea
                 </button>
               </div>
             </div>
 
-            <div className="bg-white p-6 md:p-10 rounded-[3.5rem] shadow-sm border border-gray-100">
+            <div className="ui-card p-6 md:p-10 rounded-[3rem]">
               <h3 className="text-xl font-black mb-6">Concedii și Zile Libere Excepționale</h3>
-              <div className="bg-gray-50 p-6 rounded-[2.5rem] border border-gray-100 mb-8">
+              <div className="bg-[var(--surface-muted)] p-6 rounded-[2.5rem] border border-[var(--border-soft)] mb-8">
                 <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-4">Adaugă o perioadă nouă</p>
                 <div className="flex flex-col xl:flex-row items-start xl:items-end gap-6">
                   <div className="w-full xl:w-auto">
@@ -1069,14 +1069,14 @@ export default function AdminDashboard() {
                     <div className="scale-90 transform origin-top-left border border-gray-200 rounded-3xl bg-white p-2 inline-block"><DayPicker mode="single" selected={closureForm.end_date} onSelect={(d) => setClosureForm({...closureForm, end_date: d})} locale={ro} disabled={{ before: closureForm.start_date || new Date() }} /></div>
                   </div>
                   <div className="w-full flex-1 flex flex-col gap-4 pb-2">
-                    <input placeholder="Motiv (ex: Concediu)" className="w-full p-4 bg-white rounded-2xl font-bold border-2 border-transparent focus:border-black outline-none shadow-sm transition-all" value={closureForm.description} onChange={e => setClosureForm({...closureForm, description: e.target.value})} />
-                    <button onClick={handleSaveClosure} className="w-full py-4 bg-black text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#e21a6e] transition-all shadow-md">+ Blochează Zilele</button>
+                    <input placeholder="Motiv (ex: Concediu)" className="ui-input bg-white shadow-sm transition-all" value={closureForm.description} onChange={e => setClosureForm({...closureForm, description: e.target.value})} />
+                    <button onClick={handleSaveClosure} className="ui-btn ui-btn-primary w-full py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-[#e21a6e] transition-all shadow-md">+ Blochează Zilele</button>
                   </div>
                 </div>
               </div>
               <div className="space-y-3">
                  <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-2">Perioade Blocate Următoare</p>
-                 {closures.length > 0 ? closures.map(c => ( <div key={c.id} className="flex justify-between items-center bg-white border border-gray-100 p-5 rounded-2xl shadow-sm"><div><p className="font-black text-sm">{safeFormatDate(c.start_date, 'dd MMM yyyy')} - {safeFormatDate(c.end_date, 'dd MMM yyyy')}</p><p className="text-[10px] font-black uppercase text-[#e21a6e] tracking-widest">{c.description}</p></div><button onClick={() => deleteItem('salon_closures', c.id)} className="bg-red-50 text-red-500 w-10 h-10 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all font-black text-xs">✕</button></div> )) : ( <p className="text-sm opacity-30 italic">Nu ai niciun concediu programat.</p> )}
+                 {closures.length > 0 ? closures.map(c => ( <div key={c.id} className="flex justify-between items-center ui-card p-5 rounded-2xl shadow-sm"><div><p className="font-black text-sm">{safeFormatDate(c.start_date, 'dd MMM yyyy')} - {safeFormatDate(c.end_date, 'dd MMM yyyy')}</p><p className="text-[10px] font-black uppercase text-[#e21a6e] tracking-widest">{c.description}</p></div><button onClick={() => deleteItem('salon_closures', c.id)} className="bg-red-50 text-red-500 w-10 h-10 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all font-black text-xs">✕</button></div> )) : ( <p className="text-sm opacity-30 italic">Nu ai niciun concediu programat.</p> )}
               </div>
             </div>
           </div>
@@ -1087,7 +1087,7 @@ export default function AdminDashboard() {
             <h2 className="text-4xl font-serif italic font-bold mb-10">Contabilitate</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               <div className="space-y-4">{Object.entries(getIncomesByMonth()).map(([month, data]: any) => ( <button key={month} onClick={() => setSelectedMonth(selectedMonth === month ? null : month)} className={`w-full p-8 rounded-[2.5rem] flex justify-between items-center transition-all border ${selectedMonth === month ? 'bg-black text-white border-black shadow-xl' : 'bg-white border-gray-100 hover:border-[#e21a6e]/30'}`}><span className="text-xl font-black capitalize">{month}</span><p className={`text-sm font-black text-[#e21a6e]`}>{data.total} RON</p></button> ))}</div>
-              <div className="bg-white p-10 rounded-[3.5rem] border border-gray-100 shadow-sm h-fit">{selectedMonth ? ( <div className="animate-in slide-in-from-right-4"><h3 className="text-xl font-black mb-6 border-b pb-4">Detaliu: {selectedMonth}</h3><div className="space-y-4">{Object.entries(getIncomesByMonth()[selectedMonth].days).sort((a, b) => b[0].localeCompare(a[0])).map(([date, total]: any) => ( <div key={date} className="flex justify-between items-center py-3 border-b border-gray-50 last:border-0 text-black"><p className="font-bold text-sm">{format(parseISO(date), 'EEEE, dd MMMM', { locale: ro })}</p><p className="font-black text-md">{total} RON</p></div> ))}</div></div> ) : <p className="text-center py-20 opacity-20 italic">Selectează o lună.</p>}</div>
+              <div className="ui-card p-10 rounded-[3rem] shadow-sm h-fit">{selectedMonth ? ( <div className="animate-in slide-in-from-right-4"><h3 className="text-xl font-black mb-6 border-b pb-4">Detaliu: {selectedMonth}</h3><div className="space-y-4">{Object.entries(getIncomesByMonth()[selectedMonth].days).sort((a, b) => b[0].localeCompare(a[0])).map(([date, total]: any) => ( <div key={date} className="flex justify-between items-center py-3 border-b border-gray-50 last:border-0 text-black"><p className="font-bold text-sm">{format(parseISO(date), 'EEEE, dd MMMM', { locale: ro })}</p><p className="font-black text-md">{total} RON</p></div> ))}</div></div> ) : <p className="text-center py-20 opacity-20 italic">Selectează o lună.</p>}</div>
             </div>
           </div>
         )}
@@ -1119,42 +1119,42 @@ export default function AdminDashboard() {
               Ultima actualizare: {analyticsLastUpdated ? format(analyticsLastUpdated, 'dd MMM yyyy, HH:mm', { locale: ro }) : 'n/a'}
             </p>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+              <div className="ui-card p-5 rounded-2xl">
                 <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Login Success</p>
                 <p className="text-2xl font-black mt-2">{eventFunnel.client_login_success}</p>
               </div>
-              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+              <div className="ui-card p-5 rounded-2xl">
                 <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Booking Created</p>
                 <p className="text-2xl font-black mt-2">{eventFunnel.booking_created}</p>
               </div>
-              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+              <div className="ui-card p-5 rounded-2xl">
                 <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Waitlist Joined</p>
                 <p className="text-2xl font-black mt-2">{eventFunnel.waitlist_joined}</p>
               </div>
-              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+              <div className="ui-card p-5 rounded-2xl">
                 <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Reviews</p>
                 <p className="text-2xl font-black mt-2">{eventFunnel.review_submitted}</p>
               </div>
-              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+              <div className="ui-card p-5 rounded-2xl">
                 <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Photo Ratings</p>
                 <p className="text-2xl font-black mt-2">{eventFunnel.portfolio_rated}</p>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+              <div className="ui-card p-5 rounded-2xl">
                 <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Conversie login → booking</p>
                 <p className={`text-2xl font-black mt-2 ${getRateTone(funnelRates.loginToBooking, 45, 25)}`}>{funnelRates.loginToBooking}%</p>
               </div>
-              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+              <div className="ui-card p-5 rounded-2xl">
                 <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Conversie booking → review</p>
                 <p className={`text-2xl font-black mt-2 ${getRateTone(funnelRates.bookingToReview, 35, 15)}`}>{funnelRates.bookingToReview}%</p>
               </div>
-              <div className="bg-white p-5 rounded-2xl border border-gray-100">
+              <div className="ui-card p-5 rounded-2xl">
                 <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Pondere waitlist din booking</p>
                 <p className={`text-2xl font-black mt-2 ${funnelRates.bookingToWaitlist <= 10 ? 'text-green-600' : funnelRates.bookingToWaitlist <= 20 ? 'text-yellow-600' : 'text-red-600'}`}>{funnelRates.bookingToWaitlist}%</p>
               </div>
             </div>
-            <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-gray-100 shadow-sm mb-8">
+            <div className="ui-card p-8 md:p-10 rounded-[3rem] shadow-sm mb-8">
               <h3 className="text-xl font-black mb-2">Trend zilnic ultimele {analyticsRangeDays} zile</h3>
               <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-8">Booking-uri vs anulări</p>
               <div className="space-y-4">
@@ -1184,21 +1184,21 @@ export default function AdminDashboard() {
               <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-4">Se încarcă funnel-ul de evenimente...</p>
             )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white p-6 rounded-2xl border border-gray-100">
+              <div className="ui-card p-6 rounded-2xl">
                 <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Booking total {analyticsRangeDays} zile</p>
                 <p className="text-3xl font-black mt-3">{analyticsDaily.reduce((acc, d) => acc + d.bookings, 0)}</p>
                 <p className={`text-[10px] font-black uppercase mt-2 ${bookingsDeltaPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {formatDelta(bookingsDeltaPct)} vs perioada anterioară
                 </p>
               </div>
-              <div className="bg-white p-6 rounded-2xl border border-gray-100">
+              <div className="ui-card p-6 rounded-2xl">
                 <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Anulări total {analyticsRangeDays} zile</p>
                 <p className="text-3xl font-black mt-3 text-red-600">{analyticsDaily.reduce((acc, d) => acc + d.canceled, 0)}</p>
                 <p className={`text-[10px] font-black uppercase mt-2 ${cancelsDeltaPct <= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {formatDelta(cancelsDeltaPct)} vs perioada anterioară
                 </p>
               </div>
-              <div className="bg-white p-6 rounded-2xl border border-gray-100">
+              <div className="ui-card p-6 rounded-2xl">
                 <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Rată anulări {analyticsRangeDays} zile</p>
                 <p className="text-3xl font-black mt-3">
                   {(() => {
@@ -1213,7 +1213,7 @@ export default function AdminDashboard() {
                 </p>
               </div>
             </div>
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 mt-8">
+            <div className="ui-card p-6 rounded-2xl mt-8">
               <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-4">Top zile ocupate ({analyticsRangeDays} zile)</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {topBusyDays.length > 0 ? (
@@ -1228,7 +1228,7 @@ export default function AdminDashboard() {
                 )}
               </div>
             </div>
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 mt-8">
+            <div className="ui-card p-6 rounded-2xl mt-8">
               <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-4">Recomandări automate</p>
               <div className="space-y-2">
                 {analyticsRecommendations.map((text, idx) => (
@@ -1257,7 +1257,7 @@ export default function AdminDashboard() {
               </button>
             </div>
             {isAddingService && (
-              <div className="mb-16 bg-white p-12 rounded-[3.5rem] shadow-2xl border-4 border-black animate-in zoom-in text-black">
+              <div className="mb-16 ui-card p-12 rounded-[3rem] shadow-2xl border-2 border-[var(--border-soft)] animate-in zoom-in text-black">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
                   <input
                     placeholder="Nume"
@@ -1317,7 +1317,7 @@ export default function AdminDashboard() {
             )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {services.map((s) => (
-                <div key={s.id} className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 flex justify-between items-center group hover:border-[#e21a6e]/30 transition-all text-black">
+                <div key={s.id} className="ui-card p-8 rounded-[3rem] shadow-sm border border-[var(--border-soft)] flex justify-between items-center group hover:border-[#e21a6e]/30 transition-all text-black">
                   <div>
                     <p className="text-[10px] font-black uppercase text-[#e21a6e] mb-1">
                       {s.category || 'Serviciu'}
@@ -1399,7 +1399,7 @@ export default function AdminDashboard() {
             <h2 className="text-4xl font-serif italic font-bold mb-16 text-black">Recenzii Cliente ⭐</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 text-black">
               {visibleReviews.map((rev) => (
-                <div key={rev.id} className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-[#e21a6e]/10 relative group hover:shadow-xl transition-all text-black">
+                <div key={rev.id} className="ui-card p-10 rounded-[3rem] shadow-sm border border-[#e21a6e]/10 relative group hover:shadow-xl transition-all text-black">
                   <div className="absolute top-0 left-0 w-2 h-full bg-[#e21a6e] opacity-20 group-hover:opacity-100 transition-opacity"></div>
                   <div className="flex justify-between items-start mb-6">
                     <div>
