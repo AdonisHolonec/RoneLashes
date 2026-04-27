@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { DayPicker } from 'react-day-picker'
 import { ro } from 'date-fns/locale'
-import { format, addMinutes, isBefore, isAfter, parseISO, isSameDay, startOfToday } from 'date-fns'
+import { format, addDays, addMinutes, isBefore, isAfter, parseISO, isSameDay, startOfToday } from 'date-fns'
 import emailjs from '@emailjs/browser'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
@@ -67,6 +67,13 @@ export default function Home() {
   const [categoryOrder, setCategoryOrder] = useState<string[]>(DEFAULT_CATEGORY_ORDER)
   const [subcategoryOrder, setSubcategoryOrder] = useState<string[]>(DEFAULT_SUBCATEGORY_ORDER)
   const [authSubmitting, setAuthSubmitting] = useState(false)
+  const [preferences, setPreferences] = useState({
+    preferredStyle: '',
+    sensitivityNotes: '',
+    appointmentNotes: '',
+  })
+  const [preferencesLoading, setPreferencesLoading] = useState(false)
+  const [preferencesSaving, setPreferencesSaving] = useState(false)
 
   const router = useRouter()
 
@@ -160,6 +167,44 @@ export default function Home() {
       .eq('client_id', clientId)
       .order('start_time', { ascending: false })
     if (data) setMyAppointments(data)
+  }
+
+  async function fetchClientPreferences() {
+    if (!client?.id) return
+    setPreferencesLoading(true)
+    try {
+      const response = await fetch('/api/client/preferences', { method: 'GET' })
+      if (!response.ok) return
+      const payload = await response.json()
+      if (payload?.preferences) {
+        setPreferences({
+          preferredStyle: payload.preferences.preferredStyle || '',
+          sensitivityNotes: payload.preferences.sensitivityNotes || '',
+          appointmentNotes: payload.preferences.appointmentNotes || '',
+        })
+      }
+    } finally {
+      setPreferencesLoading(false)
+    }
+  }
+
+  async function saveClientPreferences() {
+    setPreferencesSaving(true)
+    try {
+      const response = await fetch('/api/client/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(preferences),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        alert(payload?.error || 'Preferințele nu au putut fi salvate.')
+        return
+      }
+      alert('Preferințele au fost salvate.')
+    } finally {
+      setPreferencesSaving(false)
+    }
   }
 
   // --- LOGICA AUTH ---
@@ -408,6 +453,27 @@ export default function Home() {
     setStep(1)
   }
 
+  const handleRebook = (app: any) => {
+    const prevNames = app.notes ? app.notes.split(', ') : []
+    const prevServices = services.filter((service) => prevNames.includes(service.name))
+
+    if (prevServices.length > 0) {
+      setSelectedServices(prevServices)
+    } else {
+      setSelectedServices([])
+    }
+
+    // Suggest maintenance around 21 days after last visit; if passed, suggest tomorrow.
+    const appDate = parseISO(app.start_time)
+    const suggested = addDays(appDate, 21)
+    const minDate = addDays(startOfToday(), 1)
+    setSelectedDate(isBefore(suggested, minDate) ? minDate : suggested)
+    setSelectedTime(null)
+    setModifyingId(null)
+    setStep(2)
+    setView('booking')
+  }
+
   const startCancelProcess = (app: any) => {
     setCancelingApp(app)
     setCancelReason('')
@@ -493,6 +559,14 @@ export default function Home() {
     [myAppointments]
   )
 
+  const rebookingCandidate = useMemo(
+    () =>
+      pastAppointments
+        .filter((a) => a.status !== 'rejected' && a.status !== 'canceled' && a.notes)
+        .sort((a, b) => b.start_time.localeCompare(a.start_time))[0] || null,
+    [pastAppointments]
+  )
+
   const safeFormatDate = (dateString: string | undefined | null, fmt: string) => {
     if (!dateString) return '';
     try { 
@@ -501,6 +575,14 @@ export default function Home() {
       return ''; 
     }
   }
+
+  useEffect(() => {
+    if (view === 'dashboard' && client?.id) {
+      fetchClientPreferences()
+    }
+    // fetch only when entering dashboard with a valid client session
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, client?.id])
 
   if (loading) return <div className="min-h-screen flex items-center justify-center font-black opacity-20 uppercase tracking-widest text-[var(--foreground)] bg-[var(--background)]">RoneLashes...</div>
 
@@ -681,6 +763,22 @@ export default function Home() {
           </div>
 
           <div className="px-6 max-w-md mx-auto space-y-8 ui-shell">
+            {rebookingCandidate && (
+              <div className="ui-card-soft p-5 rounded-[2rem] border border-[#e21a6e]/20">
+                <p className="ui-meta mb-2 text-black">Rebooking inteligent</p>
+                <p className="font-serif italic font-bold text-lg text-black">Continuam rezultatul perfect ✨</p>
+                <p className="text-[11px] font-bold text-black/70 mt-2">
+                  Ultima vizita: {safeFormatDate(rebookingCandidate.start_time, 'dd MMMM yyyy')}. Iti sugeram urmatoarea programare peste aproximativ 3 saptamani.
+                </p>
+                <button
+                  onClick={() => handleRebook(rebookingCandidate)}
+                  className="ui-btn ui-btn-primary w-full mt-4 py-4 rounded-2xl text-[10px] tracking-widest"
+                >
+                  Reprogrameaza rapid
+                </button>
+              </div>
+            )}
+
             <button 
               onClick={() => { 
                 setModifyingId(null); 
@@ -781,6 +879,41 @@ export default function Home() {
                 )) : (
                   <p className="p-5 text-center text-sm opacity-30 italic text-black">Niciun istoric momentan.</p>
                 )}
+              </div>
+            </div>
+
+            {/* Profil preferințe clientă */}
+            <div className="ui-card p-6 rounded-[2.2rem]">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-serif italic font-bold text-lg text-black">Profil preferințe 💖</h4>
+                {preferencesLoading && <span className="text-[10px] font-black uppercase opacity-40">Se încarcă...</span>}
+              </div>
+              <div className="space-y-3">
+                <input
+                  value={preferences.preferredStyle}
+                  onChange={(e) => setPreferences((prev) => ({ ...prev, preferredStyle: e.target.value }))}
+                  placeholder="Stil preferat (ex: Natural, Soft Volume)"
+                  className="ui-input text-black"
+                />
+                <textarea
+                  value={preferences.sensitivityNotes}
+                  onChange={(e) => setPreferences((prev) => ({ ...prev, sensitivityNotes: e.target.value }))}
+                  placeholder="Sensibilități / alergii (opțional)"
+                  className="ui-input text-black min-h-[90px] resize-none"
+                />
+                <textarea
+                  value={preferences.appointmentNotes}
+                  onChange={(e) => setPreferences((prev) => ({ ...prev, appointmentNotes: e.target.value }))}
+                  placeholder="Observații pentru următoarele programări"
+                  className="ui-input text-black min-h-[90px] resize-none"
+                />
+                <button
+                  onClick={saveClientPreferences}
+                  disabled={preferencesSaving}
+                  className="ui-btn ui-btn-primary w-full py-4 rounded-2xl text-[10px] tracking-widest disabled:opacity-50"
+                >
+                  {preferencesSaving ? 'Se salvează...' : 'Salvează preferințele'}
+                </button>
               </div>
             </div>
             
