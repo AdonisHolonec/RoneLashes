@@ -610,6 +610,40 @@ export default function Home() {
           )}
 
           <div className="w-full flex flex-col items-center mt-12">
+             <section className="w-full max-w-md ui-card-soft rounded-[2rem] p-6 mb-10 text-left">
+                <p className="ui-meta mb-3">FAQ local - Arad</p>
+                <h2 className="text-xl font-serif italic font-bold text-black mb-4">Intrebari frecvente</h2>
+                <div className="space-y-3">
+                  <details className="group bg-white/70 rounded-2xl px-4 py-3 border border-[var(--border-soft)]">
+                    <summary className="cursor-pointer list-none font-black text-sm text-black flex items-center justify-between">
+                      Cum ma programez la extensii gene?
+                      <span className="text-xs opacity-50 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <p className="text-sm text-black/70 mt-2">
+                      Intri in Portal Cliente, selectezi serviciile dorite, alegi data si ora disponibile, apoi confirmi programarea.
+                    </p>
+                  </details>
+                  <details className="group bg-white/70 rounded-2xl px-4 py-3 border border-[var(--border-soft)]">
+                    <summary className="cursor-pointer list-none font-black text-sm text-black flex items-center justify-between">
+                      Unde este salonul in Arad?
+                      <span className="text-xs opacity-50 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <p className="text-sm text-black/70 mt-2">
+                      Salonul RoneLashes este in Arad, Str. Scoalei Nr. 33A.
+                    </p>
+                  </details>
+                  <details className="group bg-white/70 rounded-2xl px-4 py-3 border border-[var(--border-soft)]">
+                    <summary className="cursor-pointer list-none font-black text-sm text-black flex items-center justify-between">
+                      Pot modifica sau anula o programare?
+                      <span className="text-xs opacity-50 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <p className="text-sm text-black/70 mt-2">
+                      Da, din dashboard-ul clientei poti modifica sau anula programarea conform disponibilitatii.
+                    </p>
+                  </details>
+                </div>
+             </section>
+
              <div className="flex justify-center gap-8 mb-10">
                 <a href="https://facebook.com/lashes.by.rone" target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-2 group text-black">
                     <div className="w-12 h-12 bg-white/50 rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-[#e21a6e] group-hover:text-white transition-all text-black">
