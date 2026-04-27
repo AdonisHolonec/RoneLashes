@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { supabase } from '../../lib/supabase'
 import { format, parseISO, isSameDay, isAfter, isBefore, startOfMonth, endOfMonth, startOfYear, endOfYear, addMinutes } from 'date-fns'
 import { ro } from 'date-fns/locale'
@@ -100,14 +100,16 @@ export default function AdminDashboard() {
   useEffect(() => {
     const searchClient = async () => {
       if (manualForm.phone.length >= 10) {
-        const { data } = await supabase
-          .from('clients')
-          .select('id, full_name')
-          .eq('phone', manualForm.phone)
-          .single()
-        
-        if (data) {
-          setManualForm(prev => ({ ...prev, name: data.full_name, clientId: data.id }))
+        const response = await fetch('/api/admin/operations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'lookup_client', phone: manualForm.phone }),
+        })
+        const payload = await response.json().catch(() => ({}))
+        const foundClient = payload?.client
+
+        if (foundClient?.id) {
+          setManualForm(prev => ({ ...prev, name: foundClient.full_name, clientId: foundClient.id }))
           setIsExistingClient(true)
         } else {
           setManualForm(prev => ({ ...prev, clientId: null }))
@@ -320,8 +322,17 @@ export default function AdminDashboard() {
   }
 
   const updateStatus = async (id: string, status: string) => {
-    const { error } = await supabase.from('appointments').update({ status }).eq('id', id)
-    if (!error) fetchAdminData()
+    const response = await fetch('/api/admin/operations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_status', id, status }),
+    })
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      alert(payload?.error || 'Statusul nu a putut fi actualizat.')
+      return
+    }
+    fetchAdminData()
   }
 
   const handleReject = async (app: any) => {
@@ -357,24 +368,31 @@ export default function AdminDashboard() {
     const [h, m] = manualForm.time.split(':'); const start = new Date(manualForm.date)
     start.setHours(parseInt(h), parseInt(m), 0, 0)
     
-    const { error } = await supabase.from('appointments').insert({
-      client_id: manualForm.clientId, 
-      client_name: manualForm.name,
-      client_phone: manualForm.phone,
-      service_id: manualForm.serviceId,
-      notes: `${s?.name} (Manual)`,
-      total_price: parseInt(String(s?.price || '0').replace(/\D/g, '')) || 0,
-      start_time: start.toISOString(),
-      end_time: addMinutes(start, s?.duration_minutes || 60).toISOString(),
-      status: 'confirmed'
+    const response = await fetch('/api/admin/operations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'manual_booking',
+        clientId: manualForm.clientId,
+        clientName: manualForm.name,
+        clientPhone: manualForm.phone,
+        serviceId: manualForm.serviceId,
+        notes: `${s?.name} (Manual)`,
+        totalPrice: parseInt(String(s?.price || '0').replace(/\D/g, '')) || 0,
+        startTime: start.toISOString(),
+        endTime: addMinutes(start, s?.duration_minutes || 60).toISOString(),
+      }),
     })
-    
-    if (!error) {
+
+    if (response.ok) {
       const msg = `Bună, ${manualForm.name}! Te-am programat pe data de ${format(start, 'dd MMMM', {locale: ro})}, la ora ${manualForm.time}. ✨`
       let p = manualForm.phone.trim(); if (p.startsWith('0')) p = p.substring(1)
       window.open(`https://wa.me/40${p}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
       setShowManualBooking(false); setManualForm({ name: '', phone: '', serviceId: '', date: undefined, time: '', clientId: null }); fetchAdminData()
+      return
     }
+    const payload = await response.json().catch(() => ({}))
+    alert(payload?.error || 'Programarea manuală nu a putut fi salvată.')
   }
 
   const handleSavePause = async () => {
@@ -382,11 +400,22 @@ export default function AdminDashboard() {
     const [h, m] = pauseForm.time.split(':'); const start = new Date(pauseForm.date)
     start.setHours(parseInt(h), parseInt(m), 0, 0)
     
-    const { error } = await supabase.from('appointments').insert({
-      client_name: pauseForm.note, client_phone: '-', notes: 'Interval Blocat', total_price: 0,
-      start_time: start.toISOString(), end_time: addMinutes(start, pauseForm.duration).toISOString(), status: 'confirmed'
+    const response = await fetch('/api/admin/operations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'save_pause',
+        note: pauseForm.note,
+        startTime: start.toISOString(),
+        endTime: addMinutes(start, pauseForm.duration).toISOString(),
+      }),
     })
-    if (!error) { setShowPauseModal(false); setPauseForm({ date: undefined, time: '', duration: 60, note: 'Pauză' }); fetchAdminData() }
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      alert(payload?.error || 'Pauza nu a putut fi salvată.')
+      return
+    }
+    setShowPauseModal(false); setPauseForm({ date: undefined, time: '', duration: 60, note: 'Pauză' }); fetchAdminData()
   }
 
   const handleSaveService = async () => {
@@ -409,15 +438,23 @@ export default function AdminDashboard() {
     setIsAddingService(false); setEditingServiceId(null); fetchAdminData()
   }
 
-  const handleUpload = async (e: any) => {
+  const handleUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     setUploading(true)
     try {
       const file = e.target.files?.[0]
       if (!file) return
-      const fileName = `${Math.random()}.${file.name.split('.').pop()}`
-      await supabase.storage.from('portfolio').upload(fileName, file)
-      const { data: { publicUrl } } = supabase.storage.from('portfolio').getPublicUrl(fileName)
-      await supabase.from('portfolio').insert([{ url: publicUrl }])
+      const formData = new FormData()
+      formData.append('action', 'upload_portfolio')
+      formData.append('file', file)
+      const response = await fetch('/api/admin/operations', {
+        method: 'POST',
+        body: formData,
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        alert(payload?.error || 'Imaginea nu a putut fi încărcată.')
+        return
+      }
       fetchAdminData()
     } finally {
       setUploading(false)
@@ -425,15 +462,58 @@ export default function AdminDashboard() {
   }
 
   const handleUpdateSchedule = async (day: any) => {
-    const { error } = await supabase.from('working_hours').update({ open_time: day.open_time, close_time: day.close_time, is_day_off: day.is_day_off }).eq('day_of_week', day.day_of_week);
-    if (!error) alert(`Programul pentru ${daysMap[day.day_of_week]} a fost actualizat!`);
+    const response = await fetch('/api/admin/operations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'update_schedule',
+        dayOfWeek: day.day_of_week,
+        openTime: day.open_time,
+        closeTime: day.close_time,
+        isDayOff: day.is_day_off,
+      }),
+    })
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      alert(payload?.error || 'Programul nu a putut fi actualizat.')
+      return
+    }
+    alert(`Programul pentru ${daysMap[day.day_of_week]} a fost actualizat!`)
   }
 
   const handleSaveClosure = async () => {
     if (!closureForm.start_date || !closureForm.end_date) return alert("Alege ambele date!")
     if (isBefore(closureForm.end_date, closureForm.start_date)) return alert("Data de sfârșit invalidă!")
-    const { error } = await supabase.from('salon_closures').insert({ start_date: format(closureForm.start_date, 'yyyy-MM-dd'), end_date: format(closureForm.end_date, 'yyyy-MM-dd'), description: closureForm.description });
-    if (!error) { alert("Concediu adăugat!"); setClosureForm({ start_date: undefined, end_date: undefined, description: 'Concediu' }); fetchAdminData(); }
+    const response = await fetch('/api/admin/operations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'save_closure',
+        startDate: format(closureForm.start_date, 'yyyy-MM-dd'),
+        endDate: format(closureForm.end_date, 'yyyy-MM-dd'),
+        description: closureForm.description,
+      }),
+    })
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      alert(payload?.error || 'Concediul nu a putut fi salvat.')
+      return
+    }
+    alert("Concediu adăugat!"); setClosureForm({ start_date: undefined, end_date: undefined, description: 'Concediu' }); fetchAdminData();
+  }
+
+  const handleResetReview = async (appointmentId: string) => {
+    const response = await fetch('/api/admin/operations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reset_review', appointmentId }),
+    })
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      alert(payload?.error || 'Recenzia nu a putut fi resetată.')
+      return
+    }
+    fetchAdminData()
   }
 
   const safeFormatDate = (dateString: string, fmt: string) => { try { return format(parseISO(dateString), fmt, { locale: ro }) } catch { return '' } }
@@ -1413,7 +1493,7 @@ export default function AdminDashboard() {
                   </div>
                   <p className="text-[10px] font-black uppercase text-[#e21a6e] mb-3">{rev.notes}</p>
                   <p className="text-sm italic font-medium text-black/70 leading-relaxed mb-6">&quot;{rev.review_text || 'Fără mesaj.'}&quot;</p>
-                  <button onClick={() => { if(confirm("Vrei să ștergi recenzia?")) supabase.from('appointments').update({ rating: 0, review_text: null }).eq('id', rev.id).then(() => fetchAdminData()) }} className="text-[10px] font-black uppercase opacity-20 hover:opacity-100 transition-opacity text-red-600">Resetare Recenzie</button>
+                  <button onClick={() => { if(confirm("Vrei să ștergi recenzia?")) handleResetReview(rev.id) }} className="text-[10px] font-black uppercase opacity-20 hover:opacity-100 transition-opacity text-red-600">Resetare Recenzie</button>
                 </div>
               ))}
             </div>
