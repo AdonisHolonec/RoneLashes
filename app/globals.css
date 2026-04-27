@@ -23,25 +23,11 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #171117;
-    --foreground: #f9eaf1;
-    --surface-1: #241a24;
-    --surface-2: #2c1f2c;
-    --surface-muted: #332534;
-    --accent-1: #ff4d94;
-    --accent-1-soft: #4b2738;
-    --border-soft: #4a3647;
-    --shadow-soft: none;
-    --shadow-card: none;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  color-scheme: light;
 }
 
 .ui-shell {
