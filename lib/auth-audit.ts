@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { getServiceRoleSupabase } from '@/lib/service-role-supabase'
 
 type AuthAuditEvent = {
   area: 'client' | 'admin'
@@ -9,15 +9,8 @@ type AuthAuditEvent = {
   reason?: string
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-
 async function persistAuthAuditEvent(event: AuthAuditEvent, safePhone: string) {
-  if (!supabaseUrl || !supabaseServiceRoleKey) return
-
-  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
+  const supabase = getServiceRoleSupabase()
   await supabase.from('auth_events').insert({
     area: event.area,
     action: event.action,

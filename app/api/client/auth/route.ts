@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import {
   buildClientSessionToken,
   getClientAuthCookieName,
@@ -15,18 +14,7 @@ import {
 } from '@/lib/client-login-guard'
 import { logAuthAuditEvent } from '@/lib/auth-audit'
 import { trackAnalyticsEvent } from '@/lib/analytics'
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-
-function getSupabase() {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error('Supabase environment variables are missing.')
-  }
-  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-}
+import { getServiceRoleSupabase } from '@/lib/service-role-supabase'
 
 function getClientIp(request: Request) {
   return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
@@ -121,7 +109,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const supabase = getSupabase()
+    const supabase = getServiceRoleSupabase()
 
     if (action === 'register') {
       if (fullName.length < 3) {

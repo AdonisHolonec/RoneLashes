@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { supabase } from '../lib/supabase'
 import { DayPicker } from 'react-day-picker'
 import { ro } from 'date-fns/locale'
 import { format, addDays, addMinutes, isBefore, isAfter, parseISO, isSameDay, startOfToday } from 'date-fns'
@@ -33,6 +32,8 @@ export default function Home() {
   const [starRating, setStarRating] = useState(5)
   const [reviewText, setReviewText] = useState('')
   const [portfolioRatings, setPortfolioRatings] = useState<any[]>([])
+  const [myPortfolioRatings, setMyPortfolioRatings] = useState<any[]>([])
+  const [publicReviews, setPublicReviews] = useState<any[]>([])
 
   // Auth States
   const [phone, setPhone] = useState('')
@@ -88,6 +89,7 @@ export default function Home() {
           setClient(payload.client)
           setView('dashboard')
           fetchClientAppointments(payload.client.id)
+          fetchGlobalData()
         }
       } catch {
         // fallback: rămânem pe ecranul de auth dacă sesiunea nu poate fi citită
@@ -130,43 +132,32 @@ export default function Home() {
 
   async function fetchGlobalData() {
     try {
-      const todayString = new Date().toISOString().split('T')[0]
-      const [sRes, aRes, pRes, prRes, schedRes, cRes, orderRes] = await Promise.all([
-        supabase.from('services').select('*'),
-        supabase
-          .from('appointments')
-          .select('id, start_time, end_time, status, notes, total_price, rating, review_text, client_name, services(*)'),
-        supabase.from('portfolio').select('*').order('created_at', { ascending: false }),
-        supabase.from('portfolio_ratings').select('id, photo_id, client_id, rating'),
-        supabase.from('working_hours').select('*'),
-        supabase.from('salon_closures').select('*').gte('end_date', todayString),
-        fetch('/api/public/service-order', { method: 'GET' }),
-      ])
+      const response = await fetch('/api/public/portal', { method: 'GET' })
+      if (!response.ok) return
+      const payload = await response.json()
 
-      if (sRes.data) setServices(sRes.data)
-      if (aRes.data) setAppointments(aRes.data)
-      if (pRes.data) setPhotos(pRes.data)
-      if (prRes.data) setPortfolioRatings(prRes.data)
-      if (schedRes.data) setSchedule(schedRes.data)
-      if (cRes.data) setClosures(cRes.data)
-      if (orderRes.ok) {
-        const payload = await orderRes.json()
-        if (Array.isArray(payload?.categoryOrder)) setCategoryOrder(payload.categoryOrder)
-        if (Array.isArray(payload?.subcategoryOrder)) setSubcategoryOrder(payload.subcategoryOrder)
-      }
+      if (Array.isArray(payload?.services)) setServices(payload.services)
+      if (Array.isArray(payload?.bookedAppointments)) setAppointments(payload.bookedAppointments)
+      if (Array.isArray(payload?.photos)) setPhotos(payload.photos)
+      if (Array.isArray(payload?.portfolioRatings)) setPortfolioRatings(payload.portfolioRatings)
+      if (Array.isArray(payload?.myPortfolioRatings)) setMyPortfolioRatings(payload.myPortfolioRatings)
+      else setMyPortfolioRatings([])
+      if (Array.isArray(payload?.schedule)) setSchedule(payload.schedule)
+      if (Array.isArray(payload?.closures)) setClosures(payload.closures)
+      if (Array.isArray(payload?.publicReviews)) setPublicReviews(payload.publicReviews)
+      if (Array.isArray(payload?.categoryOrder)) setCategoryOrder(payload.categoryOrder)
+      if (Array.isArray(payload?.subcategoryOrder)) setSubcategoryOrder(payload.subcategoryOrder)
     } finally {
       setLoading(false)
     }
   }
 
   async function fetchClientAppointments(clientId: string) {
-    if (!clientId) return;
-    const { data } = await supabase
-      .from('appointments')
-      .select('*, services(*)')
-      .eq('client_id', clientId)
-      .order('start_time', { ascending: false })
-    if (data) setMyAppointments(data)
+    if (!clientId) return
+    const response = await fetch('/api/client/appointments', { method: 'GET' })
+    if (!response.ok) return
+    const payload = await response.json()
+    if (Array.isArray(payload?.appointments)) setMyAppointments(payload.appointments)
   }
 
   async function fetchClientPreferences() {
@@ -239,6 +230,7 @@ export default function Home() {
     setClient(clientData)
     setView('dashboard')
     fetchClientAppointments(clientData.id)
+    fetchGlobalData()
   }
 
   const handleLogout = async () => {
@@ -248,7 +240,9 @@ export default function Home() {
       body: JSON.stringify({ action: 'logout' }),
     }).catch(() => null)
     setClient(null)
+    setMyAppointments([])
     setView('auth')
+    fetchGlobalData()
   }
 
   // --- LOGICA BOOKING ---
@@ -363,8 +357,8 @@ export default function Home() {
     }
     const [h, m] = selectedTime!.split(':')
     const start = new Date(selectedDate!); start.setHours(parseInt(h), parseInt(m), 0, 0)
-    const end = addMinutes(start, totalDuration)
     const serviceNames = selectedServices.map(s => s.name).join(', ')
+    const serviceIds = selectedServices.map((service) => String(service.id))
 
     let bookingResponse: Response
     if (modifyingId) {
@@ -375,9 +369,7 @@ export default function Home() {
           action: 'update',
           appointmentId: modifyingId,
           startTime: start.toISOString(),
-          endTime: end.toISOString(),
-          notes: serviceNames,
-          totalPrice,
+          serviceIds,
         }),
       })
     } else {
@@ -387,9 +379,7 @@ export default function Home() {
         body: JSON.stringify({
           action: 'create',
           startTime: start.toISOString(),
-          endTime: end.toISOString(),
-          notes: serviceNames,
-          totalPrice,
+          serviceIds,
         }),
       })
     }
@@ -412,7 +402,8 @@ export default function Home() {
       fetchGlobalData()
       if (client?.id) fetchClientAppointments(client.id)
     } else {
-      window.alert("A apărut o eroare la salvare.")
+      const payload = await bookingResponse.json().catch(() => ({}))
+      window.alert(payload?.error || "A apărut o eroare la salvare.")
     }
   }
 
@@ -444,7 +435,7 @@ export default function Home() {
     const prevServices = services.filter(s => prevNames.includes(s.name))
     
     if (prevServices.length > 0) setSelectedServices(prevServices)
-    else setSelectedServices([app.services])
+    else setSelectedServices(app.services ? [app.services] : [])
 
     setSelectedDate(parseISO(app.start_time))
     setSelectedTime(format(parseISO(app.start_time), 'HH:mm'))
@@ -542,11 +533,11 @@ export default function Home() {
 
   const reviewedAppointments = useMemo(
     () =>
-      appointments
+      publicReviews
         .filter((a) => a.rating >= 4 && a.review_text)
         .sort((a, b) => b.start_time.localeCompare(a.start_time))
         .slice(0, 8),
-    [appointments]
+    [publicReviews]
   )
 
   const futureAppointments = useMemo(
@@ -631,6 +622,7 @@ export default function Home() {
               {isRegistering && (
                 <input 
                   placeholder="Numele tău complet" 
+                  data-testid="client-auth-name"
                   className="ui-input text-center text-black" 
                   value={fullName} 
                   onChange={e => setFullName(e.target.value)} 
@@ -639,6 +631,7 @@ export default function Home() {
               <input 
                 type="tel" 
                 placeholder="Număr Telefon" 
+                data-testid="client-auth-phone"
                 className="ui-input text-center text-black" 
                 value={phone} 
                 onChange={e => setPhone(e.target.value.replace(/\D/g, ''))} 
@@ -647,16 +640,17 @@ export default function Home() {
                 type="password" 
                 maxLength={4} 
                 placeholder="PIN 4 Cifre" 
+                data-testid="client-auth-pin"
                 className="ui-input text-center text-2xl tracking-[1em] text-black" 
                 value={pin} 
                 onChange={e => setPin(e.target.value.replace(/\D/g, ''))} 
               />
               
-              <button disabled={authSubmitting} onClick={handleAuth} className="ui-btn ui-btn-primary w-full py-5 text-xs tracking-widest active:scale-95 disabled:opacity-50">
+              <button data-testid="client-auth-submit" disabled={authSubmitting} onClick={handleAuth} className="ui-btn ui-btn-primary w-full py-5 text-xs tracking-widest active:scale-95 disabled:opacity-50">
                 {authSubmitting ? 'Se procesează...' : isRegistering ? 'Creează Cont' : 'Intră în Cont'}
               </button>
               
-              <button onClick={() => setIsRegistering(!isRegistering)} className="text-[10px] font-black uppercase opacity-40 tracking-widest mt-4 text-black">
+              <button data-testid="client-auth-toggle" onClick={() => setIsRegistering(!isRegistering)} className="text-[10px] font-black uppercase opacity-40 tracking-widest mt-4 text-black">
                 {isRegistering ? 'Ai deja cont? Loghează-te' : 'Clientă nouă? Înregistrează-te'}
               </button>
             </div>
@@ -753,7 +747,7 @@ export default function Home() {
 
       {/* 2. DASHBOARD CLIENTA */}
       {view === 'dashboard' && (
-        <div className="animate-in fade-in duration-500">
+        <div data-testid="client-dashboard" className="animate-in fade-in duration-500">
           <div className="p-8 bg-gradient-to-r from-[#1f1721] to-[#2a1c2b] text-white rounded-b-[3rem] shadow-2xl mb-8 flex justify-between items-center">
             <div>
               <p className="text-[10px] font-black uppercase opacity-40 mb-1">Bună,</p>
@@ -780,6 +774,7 @@ export default function Home() {
             )}
 
             <button 
+              data-testid="new-booking-button"
               onClick={() => { 
                 setModifyingId(null); 
                 setSelectedServices([]); 
@@ -926,7 +921,7 @@ export default function Home() {
                   {photos.slice(0, 10).map(p => {
                     const photoRatings = portfolioRatings.filter(r => r.photo_id === p.id);
                     const avg = photoRatings.length > 0 ? (photoRatings.reduce((sum, r) => sum + r.rating, 0) / photoRatings.length).toFixed(1) : 'Nou';
-                    const myRating = photoRatings.find(r => r.client_id === client?.id)?.rating || 0;
+                    const myRating = myPortfolioRatings.find(r => r.photo_id === p.id)?.rating || 0;
 
                     return (
                       <div key={p.id} className="min-w-[160px] max-w-[160px] relative aspect-square rounded-3xl overflow-hidden shadow-sm border border-[var(--border-soft)] group snap-center shrink-0">
@@ -1054,7 +1049,7 @@ export default function Home() {
 
       {/* 3. PROCES PROGRAMARE & MODIFICARE */}
       {view === 'booking' && (
-        <div className="p-6 max-w-md mx-auto animate-in slide-in-from-bottom-10 duration-500 ui-shell min-h-[calc(100dvh-2.5rem)] flex flex-col">
+        <div data-testid="booking-view" className="p-6 max-w-md mx-auto animate-in slide-in-from-bottom-10 duration-500 ui-shell min-h-[calc(100dvh-2.5rem)] flex flex-col">
           <button 
             onClick={() => { setModifyingId(null); setView('dashboard') }} 
             className="mb-6 text-[10px] font-black uppercase opacity-40 hover:opacity-100 transition-all text-black"
@@ -1071,6 +1066,7 @@ export default function Home() {
                   {categories.map(cat => (
                     <div key={cat} className="border-b border-gray-100 pb-2">
                       <button 
+                        data-testid={`category-toggle-${cat.toLowerCase().replace(/\s+/g, '-')}`}
                         onClick={() => setExpandedCategory(expandedCategory === cat ? null : cat)} 
                         className="w-full flex justify-between items-center py-4 text-left font-black text-lg text-black"
                       >
@@ -1090,6 +1086,7 @@ export default function Home() {
                               const isSel = selectedServices.find((x) => x.id === s.id)
                               return (
                                 <button
+                                  data-testid={`service-option-${s.id}`}
                                   key={s.id}
                                   onClick={() => toggleService(s)}
                                   className={`w-full flex justify-between items-center p-4 my-1 rounded-2xl border-2 transition-all ${isSel ? 'border-[#e21a6e] bg-[#fff5f8]' : 'border-[var(--border-soft)] bg-[var(--surface-muted)] hover:border-gray-200'}`}
@@ -1109,6 +1106,7 @@ export default function Home() {
                 </div>
                 {selectedServices.length > 0 && (
                   <button 
+                    data-testid="booking-continue-button"
                     onClick={() => setStep(2)} 
                     className="ui-btn ui-btn-primary w-full py-5 font-black rounded-2xl uppercase text-[11px] mt-4 shadow-lg hover:opacity-90 transition-all"
                   >
@@ -1121,7 +1119,7 @@ export default function Home() {
             {step === 2 && (
               <div className="space-y-6">
                 <h2 className="text-2xl font-serif italic font-bold text-center text-black">Alege Data</h2>
-                <div className="bg-[var(--surface-muted)] p-2 rounded-3xl flex justify-center border border-[var(--border-soft)] shadow-inner">
+                <div data-testid="booking-date-picker" className="bg-[var(--surface-muted)] p-2 rounded-3xl flex justify-center border border-[var(--border-soft)] shadow-inner">
                   <DayPicker 
                     mode="single" 
                     selected={selectedDate} 
@@ -1141,6 +1139,7 @@ export default function Home() {
                   <div className="grid grid-cols-3 gap-2">
                     {getAvailableTimes(selectedDate, totalDuration).map(t => (
                       <button 
+                        data-testid={`booking-time-${t.replace(':', '-')}`}
                         key={t} 
                         onClick={() => { setSelectedTime(t); setStep(3); }} 
                         className="ui-btn py-3 bg-[var(--surface-muted)] rounded-xl font-black text-xs hover:bg-black hover:text-white transition-all text-black"
@@ -1187,6 +1186,7 @@ export default function Home() {
                     <p className="text-xs font-bold opacity-40 uppercase text-black">{selectedServices.map(s => s.name).join(' + ')}</p>
                 </div>
                 <button 
+                  data-testid="booking-confirm-button"
                   onClick={handleBooking} 
                   className="ui-btn ui-btn-primary w-full py-5 font-black rounded-3xl uppercase text-xs tracking-widest shadow-2xl hover:bg-[#e21a6e] transition-colors"
                 >

@@ -1,17 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { ADMIN_AUTH_COOKIE, verifyAdminSessionToken } from '@/lib/admin-auth'
 import { DEFAULT_CATEGORY_ORDER, DEFAULT_SUBCATEGORY_ORDER, parseCsvOrder } from '@/lib/service-order'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-
-function getServiceSupabase() {
-  if (!supabaseUrl || !serviceRoleKey) throw new Error('Supabase service role config missing.')
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-}
+import { getServiceRoleSupabase } from '@/lib/service-role-supabase'
 
 function isAdminAuthenticated(request: NextRequest) {
   const token = request.cookies.get(ADMIN_AUTH_COOKIE)?.value || ''
@@ -21,7 +11,7 @@ function isAdminAuthenticated(request: NextRequest) {
 export async function GET(request: NextRequest) {
   if (!isAdminAuthenticated(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
-    const supabase = getServiceSupabase()
+    const supabase = getServiceRoleSupabase()
     const { data } = await supabase
       .from('app_settings')
       .select('value')
@@ -53,7 +43,7 @@ export async function POST(request: NextRequest) {
       subcategoryOrder: subcategoryOrder.length > 0 ? subcategoryOrder : DEFAULT_SUBCATEGORY_ORDER,
     }
 
-    const supabase = getServiceSupabase()
+    const supabase = getServiceRoleSupabase()
     const { error } = await supabase.from('app_settings').upsert(
       { key: 'service_order_config', value: payload, updated_at: new Date().toISOString() },
       { onConflict: 'key' }

@@ -180,6 +180,7 @@ create policy clients_service_all on public.clients
 -- Phase 2 target (recommended)
 -- ============================================================================
 -- Move ALL client mutations to server endpoints (using service role + cookie session checks),
+-- remove public reads that expose operational/customer data,
 -- then remove public INSERT/UPDATE policies from:
 --   appointments, waitlist, portfolio_ratings
 -- and allow only service_role writes.
@@ -191,9 +192,18 @@ create policy clients_service_all on public.clients
 
 drop policy if exists appointments_public_insert on public.appointments;
 drop policy if exists appointments_public_update on public.appointments;
+drop policy if exists appointments_public_read on public.appointments;
+drop policy if exists waitlist_public_read on public.waitlist;
 drop policy if exists waitlist_public_insert on public.waitlist;
+drop policy if exists portfolio_ratings_public_read on public.portfolio_ratings;
 drop policy if exists portfolio_ratings_public_insert on public.portfolio_ratings;
 drop policy if exists portfolio_ratings_public_update on public.portfolio_ratings;
+
+drop policy if exists appointments_service_read on public.appointments;
+create policy appointments_service_read on public.appointments
+  for select
+  to service_role
+  using (true);
 
 drop policy if exists appointments_service_write on public.appointments;
 create policy appointments_service_write on public.appointments
@@ -202,12 +212,24 @@ create policy appointments_service_write on public.appointments
   using (true)
   with check (true);
 
+drop policy if exists waitlist_service_read on public.waitlist;
+create policy waitlist_service_read on public.waitlist
+  for select
+  to service_role
+  using (true);
+
 drop policy if exists waitlist_service_write on public.waitlist;
 create policy waitlist_service_write on public.waitlist
   for all
   to service_role
   using (true)
   with check (true);
+
+drop policy if exists portfolio_ratings_service_read on public.portfolio_ratings;
+create policy portfolio_ratings_service_read on public.portfolio_ratings
+  for select
+  to service_role
+  using (true);
 
 drop policy if exists portfolio_ratings_service_write on public.portfolio_ratings;
 create policy portfolio_ratings_service_write on public.portfolio_ratings

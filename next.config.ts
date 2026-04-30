@@ -9,9 +9,6 @@ const supabaseHost = (() => {
 })();
 
 const nextConfig: NextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   images: {
     remotePatterns: supabaseHost
       ? [

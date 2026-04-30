@@ -1,18 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { ADMIN_AUTH_COOKIE, verifyAdminSessionToken } from '@/lib/admin-auth'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-
-function getServiceSupabase() {
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Supabase service role config missing.')
-  }
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-}
+import { getServiceRoleSupabase } from '@/lib/service-role-supabase'
 
 function isAdminAuthenticated(request: NextRequest) {
   const token = request.cookies.get(ADMIN_AUTH_COOKIE)?.value || ''
@@ -44,7 +32,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const action = String(body?.action ?? '')
-    const supabase = getServiceSupabase()
+    const supabase = getServiceRoleSupabase()
 
     if (action === 'save') {
       const serviceId = body?.serviceId ? String(body.serviceId) : null

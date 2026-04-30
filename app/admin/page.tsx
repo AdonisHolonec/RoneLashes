@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
-import { supabase } from '../../lib/supabase'
 import { format, parseISO, isSameDay, isAfter, isBefore, startOfMonth, endOfMonth, startOfYear, endOfYear, addMinutes } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
@@ -57,8 +56,6 @@ export default function AdminDashboard() {
 
   // Gestiune Portofoliu
   const [uploading, setUploading] = useState(false)
-  const PORTFOLIO_PAGE_SIZE = 20
-  const REVIEWS_PAGE_SIZE = 12
 
   // Gestiune Programare Manuală
   const [showManualBooking, setShowManualBooking] = useState(false)
@@ -121,31 +118,32 @@ export default function AdminDashboard() {
   }, [manualForm.phone])
 
   async function fetchPortfolioPage(page: number, append = false) {
-    const from = page * PORTFOLIO_PAGE_SIZE
-    const to = from + PORTFOLIO_PAGE_SIZE - 1
-    const { data } = await supabase
-      .from('portfolio')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .range(from, to)
-    const nextData = data || []
-    setHasMorePortfolio(nextData.length === PORTFOLIO_PAGE_SIZE)
-    setPortfolioPage(page)
+    const response = await fetch(`/api/admin/dashboard?mode=portfolio&page=${page}`, { method: 'GET' })
+    if (response.status === 401) {
+      router.push('/login')
+      return
+    }
+    if (!response.ok) return
+
+    const payload = await response.json()
+    const nextData = Array.isArray(payload?.items) ? payload.items : []
+    setHasMorePortfolio(Boolean(payload?.hasMore))
+    setPortfolioPage(Number(payload?.page ?? page))
     setPhotos((prev) => (append ? [...prev, ...nextData] : nextData))
   }
 
   async function fetchReviewsPage(page: number, append = false) {
-    const from = page * REVIEWS_PAGE_SIZE
-    const to = from + REVIEWS_PAGE_SIZE - 1
-    const { data } = await supabase
-      .from('appointments')
-      .select('id, client_name, start_time, notes, rating, review_text')
-      .gt('rating', 0)
-      .order('start_time', { ascending: false })
-      .range(from, to)
-    const nextData = data || []
-    setHasMoreReviews(nextData.length === REVIEWS_PAGE_SIZE)
-    setReviewsPage(page)
+    const response = await fetch(`/api/admin/dashboard?mode=reviews&page=${page}`, { method: 'GET' })
+    if (response.status === 401) {
+      router.push('/login')
+      return
+    }
+    if (!response.ok) return
+
+    const payload = await response.json()
+    const nextData = Array.isArray(payload?.items) ? payload.items : []
+    setHasMoreReviews(Boolean(payload?.hasMore))
+    setReviewsPage(Number(payload?.page ?? page))
     setReviews((prev) => (append ? [...prev, ...nextData] : nextData))
   }
 
@@ -193,26 +191,31 @@ export default function AdminDashboard() {
   async function fetchAdminData() {
     setLoading(true)
     try {
-      const todayString = new Date().toISOString().split('T')[0]
-      const [aRes, sRes, prRes, schedRes, wRes, cRes] = await Promise.all([
-        supabase
-          .from('appointments')
-          .select('id, start_time, end_time, status, client_name, client_phone, notes, total_price, rating, review_text')
-          .order('start_time', { ascending: false }),
-        supabase.from('services').select('*').order('category'),
-        supabase.from('portfolio_ratings').select('id, photo_id, client_id, rating'),
-        supabase.from('working_hours').select('*').order('day_of_week', { ascending: true }),
-        supabase.from('waitlist').select('*').gte('desired_date', todayString).order('desired_date', { ascending: true }),
-        supabase.from('salon_closures').select('*').gte('end_date', todayString).order('start_date', { ascending: true }),
-      ])
+      const response = await fetch('/api/admin/dashboard?mode=dashboard', { method: 'GET' })
+      if (response.status === 401) {
+        router.push('/login')
+        return
+      }
+      if (!response.ok) return
 
-      if (aRes.data) setAppointments(aRes.data)
-      if (sRes.data) setServices(sRes.data)
-      if (prRes.data) setPortfolioRatings(prRes.data)
-      if (schedRes.data) setSchedule(schedRes.data)
-      if (wRes.data) setWaitlist(wRes.data)
-      if (cRes.data) setClosures(cRes.data)
-      await Promise.all([fetchPortfolioPage(0, false), fetchReviewsPage(0, false)])
+      const payload = await response.json()
+
+      if (Array.isArray(payload?.appointments)) setAppointments(payload.appointments)
+      if (Array.isArray(payload?.services)) setServices(payload.services)
+      if (Array.isArray(payload?.portfolioRatings)) setPortfolioRatings(payload.portfolioRatings)
+      if (Array.isArray(payload?.schedule)) setSchedule(payload.schedule)
+      if (Array.isArray(payload?.waitlist)) setWaitlist(payload.waitlist)
+      if (Array.isArray(payload?.closures)) setClosures(payload.closures)
+
+      const portfolioItems = Array.isArray(payload?.portfolio?.items) ? payload.portfolio.items : []
+      setPhotos(portfolioItems)
+      setHasMorePortfolio(Boolean(payload?.portfolio?.hasMore))
+      setPortfolioPage(Number(payload?.portfolio?.page ?? 0))
+
+      const reviewItems = Array.isArray(payload?.reviews?.items) ? payload.reviews.items : []
+      setReviews(reviewItems)
+      setHasMoreReviews(Boolean(payload?.reviews?.hasMore))
+      setReviewsPage(Number(payload?.reviews?.page ?? 0))
     } catch (err) {
       console.error("Eroare incarcare date:", err)
     } finally {
@@ -838,7 +841,7 @@ export default function AdminDashboard() {
   if (loading) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-black/20 bg-[var(--background)]">RoneAdmin...</div>
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] font-sans flex flex-col md:flex-row relative">
+    <div data-testid="admin-dashboard" className="min-h-screen bg-[var(--background)] text-[var(--foreground)] font-sans flex flex-col md:flex-row relative">
       
       {/* SIDEBAR */}
       <div className="w-full md:w-72 bg-gradient-to-b from-[#1f1721] to-[#2c1f2c] text-white p-6 md:p-10 flex flex-col justify-between rounded-b-[2.5rem] md:rounded-b-none md:rounded-r-[3.5rem] shadow-2xl z-30">
@@ -846,7 +849,7 @@ export default function AdminDashboard() {
           <h1 className="text-2xl md:text-3xl font-serif italic font-bold mb-8 md:mb-12 text-center md:text-left">RoneLashes</h1>
           <nav className="flex md:flex-col gap-2 overflow-x-auto no-scrollbar md:overflow-visible pb-4 md:pb-0">
             {[ { id: 'appointments', label: '📅 Agenda' }, { id: 'settings', label: '⚙️ Program' }, { id: 'finance', label: '💰 Venituri' }, { id: 'analytics', label: '📈 Analytics' }, { id: 'services', label: '💅 Servicii' }, { id: 'portfolio', label: '📸 Portofoliu' }, { id: 'reviews', label: '⭐ Recenzii' } ].map((t: any) => (
-              <button key={t.id} onClick={() => setActiveTab(t.id)} className={`ui-btn px-5 md:px-8 py-3 md:py-5 rounded-2xl font-black uppercase text-[10px] md:text-[11px] tracking-widest transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-[#e21a6e] text-white shadow-xl scale-105' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}> {t.label} </button>
+              <button data-testid={`admin-tab-${t.id}`} key={t.id} onClick={() => setActiveTab(t.id)} className={`ui-btn px-5 md:px-8 py-3 md:py-5 rounded-2xl font-black uppercase text-[10px] md:text-[11px] tracking-widest transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-[#e21a6e] text-white shadow-xl scale-105' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}> {t.label} </button>
             ))}
             <button onClick={handleLogout} className="md:hidden px-5 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all bg-red-500/10 text-red-400">Deconectare</button>
           </nav>

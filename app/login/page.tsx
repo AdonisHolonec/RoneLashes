@@ -22,7 +22,8 @@ export default function AdminLogin() {
       })
 
       if (!response.ok) {
-        setErrorMessage('PIN incorect sau accesul admin nu este configurat.')
+        const payload = await response.json().catch(() => ({}))
+        setErrorMessage(payload?.error || 'PIN incorect sau accesul admin nu este configurat.')
         setPin('')
         return
       }
@@ -44,14 +45,16 @@ export default function AdminLogin() {
         <form onSubmit={handleLogin} className="space-y-6">
           <input 
             type="password" 
-            maxLength={4} 
-            placeholder="PIN 4 Cifre" 
+            maxLength={8} 
+            placeholder="PIN 4-8 Cifre" 
+            data-testid="admin-pin-input"
             className="w-full p-5 bg-white/5 border-2 border-white/10 rounded-2xl font-bold text-center text-2xl tracking-[1em] text-white outline-none focus:border-[#e21a6e] transition-colors"
             value={pin}
             onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
           />
           <button 
             type="submit" 
+            data-testid="admin-login-submit"
             disabled={isSubmitting}
             className="w-full py-5 bg-[#e21a6e] text-white font-black rounded-3xl uppercase text-xs tracking-widest shadow-xl hover:scale-105 transition-transform"
           >

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
+import { getServiceRoleSupabase } from '@/lib/service-role-supabase'
 
 type ReminderType = '24h' | '2h'
 
@@ -12,8 +12,6 @@ type AppointmentRow = {
   start_time: string
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 const cronSecret = process.env.CRON_SECRET || ''
 const whatsappToken = process.env.WHATSAPP_ACCESS_TOKEN || ''
 const whatsappPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || ''
@@ -21,23 +19,12 @@ const whatsappApiVersion = process.env.WHATSAPP_API_VERSION || 'v20.0'
 const whatsappTemplateName = process.env.WHATSAPP_TEMPLATE_NAME || ''
 const whatsappTemplateLang = process.env.WHATSAPP_TEMPLATE_LANG || 'ro'
 
-function getServiceSupabase() {
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Supabase service role config missing.')
-  }
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-}
-
 function isAuthorized(request: NextRequest) {
+  if (!cronSecret) return false
+
   const authHeader = request.headers.get('authorization') || ''
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : ''
-  const isVercelCron = (request.headers.get('user-agent') || '').includes('vercel-cron')
-
-  if (cronSecret && bearerToken === cronSecret) return true
-  if (!cronSecret && isVercelCron) return true
-  return false
+  return bearerToken === cronSecret
 }
 
 function normalizeRoPhone(raw: string) {
@@ -113,6 +100,10 @@ async function sendWhatsAppText(toPhone: string, text: string) {
 export const runtime = 'nodejs'
 
 export async function GET(request: NextRequest) {
+  if (!cronSecret) {
+    return NextResponse.json({ error: 'Reminder job is disabled until CRON_SECRET is configured.' }, { status: 500 })
+  }
+
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -125,7 +116,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const supabase = getServiceSupabase()
+    const supabase = getServiceRoleSupabase()
     const now = new Date()
     const upperBound = new Date(now.getTime() + 26 * 60 * 60 * 1000).toISOString()
 
