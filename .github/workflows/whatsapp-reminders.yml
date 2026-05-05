@@ -1,0 +1,43 @@
+# Triggers /api/internal/reminders every 15 minutes so T-24h and T-2h windows
+# work on Vercel Hobby (daily cron is not enough).
+#
+# PUBLIC_APP_URL must match production: use the same host as NEXT_PUBLIC_SITE_URL in Vercel
+# (no path, no trailing slash), e.g. https://ronelashes.vercel.app
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   CRON_SECRET       — same value as Vercel env CRON_SECRET
+#   PUBLIC_APP_URL    — production origin only (see above)
+
+name: WhatsApp appointment reminders
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  trigger-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call reminders endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          PUBLIC_APP_URL: ${{ secrets.PUBLIC_APP_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ] || [ -z "${PUBLIC_APP_URL}" ]; then
+            echo "::error::Set GitHub Actions secrets CRON_SECRET and PUBLIC_APP_URL."
+            exit 1
+          fi
+          BASE="${PUBLIC_APP_URL%/}"
+          URL="${BASE}/api/internal/reminders"
+          echo "GET $URL"
+          HTTP_CODE=$(curl -sS -o /tmp/reminders-body.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "$URL")
+          cat /tmp/reminders-body.json
+          echo ""
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Expected HTTP 200, got $HTTP_CODE"
+            exit 1
+          fi

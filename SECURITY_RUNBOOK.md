@@ -15,6 +15,25 @@ Set these in Vercel (Production, Preview, Development) and in local `.env.local`
 - `NEXT_PUBLIC_EMAILJS_SERVICE_ID`
 - `NEXT_PUBLIC_EMAILJS_TEMPLATE_ID`
 - `NEXT_PUBLIC_EMAILJS_PUBLIC_KEY`
+- `NEXT_PUBLIC_SITE_URL` (canonical site URL; used for SEO and should match production host)
+- `CRON_SECRET` (random string; protects `/api/internal/reminders`)
+- `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` (Meta Cloud API)
+- Optional: `WHATSAPP_API_VERSION` (default `v20.0`), `WHATSAPP_TEMPLATE_NAME`, `WHATSAPP_TEMPLATE_LANG`
+
+## WhatsApp reminders (GitHub Actions)
+
+Vercel Hobby allows only daily cron jobs, so **reminder pings** run from GitHub Actions (`.github/workflows/whatsapp-reminders.yml`) every 15 minutes.
+
+**GitHub repository secrets** (must match production):
+
+| Secret | Value |
+| --- | --- |
+| `CRON_SECRET` | Same as Vercel `CRON_SECRET`. |
+| `PUBLIC_APP_URL` | Same **origin** as `NEXT_PUBLIC_SITE_URL` (no trailing slash), e.g. `https://ronelashes.vercel.app`. |
+
+**Supabase:** run `lib/appointment-reminders.sql` so `appointment_reminders` exists.
+
+**Manual test:** Actions → *WhatsApp appointment reminders* → *Run workflow*.
 
 ## Deployment Checklist
 
