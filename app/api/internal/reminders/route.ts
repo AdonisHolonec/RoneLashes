@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { format } from 'date-fns'
-import { ro } from 'date-fns/locale'
 import { getServiceRoleSupabase } from '@/lib/service-role-supabase'
 
 type ReminderType = '24h' | '2h'
@@ -18,6 +16,37 @@ const whatsappPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || ''
 const whatsappApiVersion = process.env.WHATSAPP_API_VERSION || 'v20.0'
 const whatsappTemplateName = process.env.WHATSAPP_TEMPLATE_NAME || ''
 const whatsappTemplateLang = process.env.WHATSAPP_TEMPLATE_LANG || 'ro'
+
+const REMINDER_TIMEZONE = 'Europe/Bucharest'
+/** How far ahead we load appointments (covers “tomorrow” in RO + ~2h window + DST margin). */
+const QUERY_HORIZON_HOURS = 72
+
+function getCalendarPartsInTz(date: Date, timeZone: string) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const parts = formatter.formatToParts(date)
+  const y = Number(parts.find((p) => p.type === 'year')?.value)
+  const m = Number(parts.find((p) => p.type === 'month')?.value)
+  const d = Number(parts.find((p) => p.type === 'day')?.value)
+  return { y, m, d }
+}
+
+/** Gregorian civil date + delta days (not wall-clock 24h). */
+function addCalendarDays(y: number, m: number, d: number, delta: number) {
+  const x = new Date(Date.UTC(y, m - 1, d + delta))
+  return { y: x.getUTCFullYear(), m: x.getUTCMonth() + 1, d: x.getUTCDate() }
+}
+
+function isSameCivilDay(
+  a: { y: number; m: number; d: number },
+  b: { y: number; m: number; d: number },
+) {
+  return a.y === b.y && a.m === b.m && a.d === b.d
+}
 
 function isAuthorized(request: NextRequest) {
   if (!cronSecret) return false
@@ -37,7 +66,14 @@ function normalizeRoPhone(raw: string) {
 
 function buildReminderText(reminderType: ReminderType, appointment: AppointmentRow) {
   const startDate = new Date(appointment.start_time)
-  const niceDate = format(startDate, "EEEE, d MMMM, HH:mm", { locale: ro })
+  const niceDate = new Intl.DateTimeFormat('ro-RO', {
+    timeZone: REMINDER_TIMEZONE,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(startDate)
   const intro =
     reminderType === '24h'
       ? 'Reminder pentru programarea de maine'
@@ -47,11 +83,18 @@ function buildReminderText(reminderType: ReminderType, appointment: AppointmentR
 }
 
 function detectReminderType(startTimeIso: string, nowMs: number): ReminderType | null {
-  const startMs = new Date(startTimeIso).getTime()
-  const diffMinutes = (startMs - nowMs) / 60000
+  const start = new Date(startTimeIso)
+  const now = new Date(nowMs)
+  if (start.getTime() <= now.getTime()) return null
 
-  if (diffMinutes >= 23 * 60 && diffMinutes <= 25 * 60) return '24h'
+  const diffMinutes = (start.getTime() - nowMs) / 60000
   if (diffMinutes >= 90 && diffMinutes <= 150) return '2h'
+
+  const nowRo = getCalendarPartsInTz(now, REMINDER_TIMEZONE)
+  const apptRo = getCalendarPartsInTz(start, REMINDER_TIMEZONE)
+  const dayBeforeAppt = addCalendarDays(apptRo.y, apptRo.m, apptRo.d, -1)
+  if (isSameCivilDay(nowRo, dayBeforeAppt)) return '24h'
+
   return null
 }
 
@@ -118,7 +161,7 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = getServiceRoleSupabase()
     const now = new Date()
-    const upperBound = new Date(now.getTime() + 26 * 60 * 60 * 1000).toISOString()
+    const upperBound = new Date(now.getTime() + QUERY_HORIZON_HOURS * 60 * 60 * 1000).toISOString()
 
     const { data: appointments, error: appointmentsError } = await supabase
       .from('appointments')

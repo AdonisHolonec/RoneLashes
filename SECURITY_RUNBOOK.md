@@ -35,6 +35,8 @@ Vercel Hobby allows only daily cron jobs, so **reminder pings** run from GitHub 
 
 **Manual test:** Actions → *WhatsApp appointment reminders* → *Run workflow*.
 
+Reminder **„24h”** în cod = **ziua calendaristică anterioară** programării în `Europe/Bucharest` (nu fereastra fixă 23–25 ore). Reminder **„2h”** rămâne între ~90–150 minute înainte de `start_time`.
+
 ## Deployment Checklist
 
 1. `npm run lint`
