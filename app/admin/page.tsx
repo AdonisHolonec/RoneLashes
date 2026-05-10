@@ -388,22 +388,30 @@ export default function AdminDashboard() {
     fetchAdminData()
   }
 
+  const buildWhatsAppHref = (rawPhone: string, message: string) => {
+    const digits = String(rawPhone || '').replace(/\D/g, '')
+    const phone = digits.startsWith('40') ? digits : digits.startsWith('0') ? `4${digits}` : `40${digits}`
+    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+  }
+
+  const buildReviewRequestMessage = (app: any) =>
+    `Bună, ${app.client_name}! Îți mulțumesc pentru vizita la RoneLashes din ${safeFormatDate(app.start_time, 'dd MMMM')} ✨\n\nM-aș bucura enorm dacă mi-ai lăsa o recenzie direct în contul tău din portal. Ajută alte cliente să aleagă cu încredere și pe mine mă ajută să îmbunătățesc experiența.\n\nIntră aici: ${process.env.NEXT_PUBLIC_SITE_URL || 'https://ronelashes.vercel.app'}`
+
   const handleReject = async (app: any) => {
     if (window.confirm(`Refuzi programarea lui ${app.client_name}?`)) {
       const msg = `Bună, ${app.client_name}! Din păcate nu pot onora programarea ta de pe data de ${format(parseISO(app.start_time), 'dd MMMM')}, ora ${format(parseISO(app.start_time), 'HH:mm')}. Te rog să alegi altă dată din aplicație! ✨`
-      let phone = app.client_phone.trim()
-      if (phone.startsWith('0')) phone = phone.substring(1)
-      window.open(`https://wa.me/40${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+      window.open(buildWhatsAppHref(app.client_phone, msg), '_blank', 'noopener,noreferrer')
       await updateStatus(app.id, 'rejected')
     }
   }
 
   const handleComplete = async (app: any) => {
-    const msg = `Bună, ${app.client_name}! Îți mulțumesc pentru vizita de astăzi! ✨ M-aș bucura enorm dacă mi-ai lăsa o recenzie direct în contul tău din aplicație. Te mai aștept cu drag! 💖`
-    let phone = app.client_phone.trim()
-    if (phone.startsWith('0')) phone = phone.substring(1)
-    window.open(`https://wa.me/40${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+    window.open(buildWhatsAppHref(app.client_phone, buildReviewRequestMessage(app)), '_blank', 'noopener,noreferrer')
     if (app.status !== 'completed') await updateStatus(app.id, 'completed')
+  }
+
+  const handleRequestReview = (app: any) => {
+    window.open(buildWhatsAppHref(app.client_phone, buildReviewRequestMessage(app)), '_blank', 'noopener,noreferrer')
   }
 
   const handleRemind = (app: any) => {
@@ -830,6 +838,33 @@ export default function AdminDashboard() {
   }, [analyticsDaily, bookingsDeltaPct, eventFunnel, topBusyDays])
   const visiblePortfolioPhotos = useMemo(() => photos, [photos])
   const visibleReviews = useMemo(() => reviews, [reviews])
+  const reviewRequests = useMemo(
+    () =>
+      appointments
+        .filter((app) => {
+          if (app.client_phone === '-' || !app.client_phone) return false
+          if (app.status === 'rejected' || app.status === 'canceled') return false
+          if (Number(app.rating || 0) > 0) return false
+          return isBefore(parseISO(app.start_time), new Date())
+        })
+        .sort((a, b) => b.start_time.localeCompare(a.start_time))
+        .slice(0, 12),
+    [appointments]
+  )
+  const reviewsSummary = useMemo(() => {
+    const rated = appointments.filter((app) => Number(app.rating || 0) > 0)
+    const withText = rated.filter((app) => String(app.review_text || '').trim().length > 0)
+    const average =
+      rated.length > 0
+        ? (rated.reduce((acc, app) => acc + Number(app.rating || 0), 0) / rated.length).toFixed(1)
+        : '0.0'
+    return {
+      total: rated.length,
+      withText: withText.length,
+      average,
+      pending: reviewRequests.length,
+    }
+  }, [appointments, reviewRequests.length])
   const existingCategories = useMemo(
     () =>
       sortByPreferredOrder(
@@ -1662,26 +1697,106 @@ export default function AdminDashboard() {
 
         {activeTab === 'reviews' && (
           <div className="animate-in fade-in duration-700">
-            <h2 className="text-4xl font-serif italic font-bold mb-16 text-black">Recenzii Cliente ⭐</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 text-black">
-              {visibleReviews.map((rev) => (
-                <div key={rev.id} className="ui-card p-10 rounded-[3rem] shadow-sm border border-[#e21a6e]/10 relative group hover:shadow-xl transition-all text-black">
-                  <div className="absolute top-0 left-0 w-2 h-full bg-[#e21a6e] opacity-20 group-hover:opacity-100 transition-opacity"></div>
-                  <div className="flex justify-between items-start mb-6">
-                    <div>
-                      <h4 className="font-black text-xl leading-tight">{rev.client_name}</h4>
-                      <p className="text-[10px] font-black opacity-30 mt-1 tracking-widest">{safeFormatDate(rev.start_time, 'dd MMMM yyyy')}</p>
-                    </div>
-                    <div className="bg-yellow-50 px-4 py-2 rounded-2xl flex items-center gap-2 border border-yellow-200">
-                      <span className="text-yellow-600 font-black text-lg">{rev.rating}</span>
-                      <span className="text-yellow-400 text-sm">★</span>
-                    </div>
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
+              <div>
+                <h2 className="text-4xl font-serif italic font-bold text-black">Recenzii Cliente ⭐</h2>
+                <p className="text-sm font-bold text-black/50 mt-2 max-w-2xl">
+                  Aici vezi recenziile publice și programările finalizate/past fără recenzie. Butonul „Solicită recenzie”
+                  deschide WhatsApp cu mesaj pregătit către clientă.
+                </p>
+              </div>
+              <button
+                onClick={() => fetchReviewsPage(0, false)}
+                disabled={reviewsLoadingMore}
+                className="px-5 py-3 bg-white border border-gray-200 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:border-black disabled:opacity-50"
+              >
+                Reîncarcă recenzii
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              <div className="ui-card p-6 rounded-2xl">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Rating mediu</p>
+                <p className="text-3xl font-black mt-2 text-black">{reviewsSummary.average} ★</p>
+              </div>
+              <div className="ui-card p-6 rounded-2xl">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Recenzii total</p>
+                <p className="text-3xl font-black mt-2 text-black">{reviewsSummary.total}</p>
+              </div>
+              <div className="ui-card p-6 rounded-2xl">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Cu mesaj text</p>
+                <p className="text-3xl font-black mt-2 text-[#e21a6e]">{reviewsSummary.withText}</p>
+              </div>
+              <div className="ui-card p-6 rounded-2xl">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">De solicitat</p>
+                <p className="text-3xl font-black mt-2 text-orange-600">{reviewsSummary.pending}</p>
+              </div>
+            </div>
+
+            {reviewRequests.length > 0 && (
+              <div className="ui-card-soft p-6 rounded-[2.5rem] border border-[#e21a6e]/15 mb-10">
+                <div className="flex items-center justify-between gap-4 mb-5">
+                  <div>
+                    <p className="ui-meta mb-1 text-black">Mecanică solicitare</p>
+                    <h3 className="text-xl font-serif italic font-bold text-black">Cliente fără recenzie</h3>
                   </div>
-                  <p className="text-[10px] font-black uppercase text-[#e21a6e] mb-3">{rev.notes}</p>
-                  <p className="text-sm italic font-medium text-black/70 leading-relaxed mb-6">&quot;{rev.review_text || 'Fără mesaj.'}&quot;</p>
-                  <button onClick={() => { if(confirm("Vrei să ștergi recenzia?")) handleResetReview(rev.id) }} className="text-[10px] font-black uppercase opacity-20 hover:opacity-100 transition-opacity text-red-600">Resetare Recenzie</button>
+                  <span className="bg-[#e21a6e] text-white rounded-full px-3 py-1 text-[10px] font-black">
+                    {reviewRequests.length}
+                  </span>
                 </div>
-              ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {reviewRequests.map((app) => (
+                    <div key={app.id} className="bg-white/80 rounded-3xl p-5 border border-white shadow-sm">
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div>
+                          <p className="font-black text-sm text-black">{app.client_name}</p>
+                          <p className="text-[10px] font-black uppercase text-[#e21a6e] tracking-widest">
+                            {safeFormatDate(app.start_time, 'dd MMM yyyy')} • {app.notes}
+                          </p>
+                        </div>
+                        {app.status === 'completed' && (
+                          <span className="bg-green-100 text-green-600 rounded-full px-2 py-1 text-[8px] font-black uppercase">
+                            finalizată
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleRequestReview(app)}
+                        className="w-full py-3 bg-[#25D366] text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-sm hover:opacity-90 transition-opacity"
+                      >
+                        Solicită recenzie pe WhatsApp
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 text-black">
+              {visibleReviews.length > 0 ? (
+                visibleReviews.map((rev) => (
+                  <div key={rev.id} className="ui-card p-10 rounded-[3rem] shadow-sm border border-[#e21a6e]/10 relative group hover:shadow-xl transition-all text-black">
+                    <div className="absolute top-0 left-0 w-2 h-full bg-[#e21a6e] opacity-20 group-hover:opacity-100 transition-opacity"></div>
+                    <div className="flex justify-between items-start mb-6">
+                      <div>
+                        <h4 className="font-black text-xl leading-tight">{rev.client_name}</h4>
+                        <p className="text-[10px] font-black opacity-30 mt-1 tracking-widest">{safeFormatDate(rev.start_time, 'dd MMMM yyyy')}</p>
+                      </div>
+                      <div className="bg-yellow-50 px-4 py-2 rounded-2xl flex items-center gap-2 border border-yellow-200">
+                        <span className="text-yellow-600 font-black text-lg">{rev.rating}</span>
+                        <span className="text-yellow-400 text-sm">★</span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] font-black uppercase text-[#e21a6e] mb-3">{rev.notes}</p>
+                    <p className="text-sm italic font-medium text-black/70 leading-relaxed mb-6">&quot;{rev.review_text || 'Fără mesaj.'}&quot;</p>
+                    <button onClick={() => { if(confirm("Vrei să ștergi recenzia?")) handleResetReview(rev.id) }} className="text-[10px] font-black uppercase opacity-20 hover:opacity-100 transition-opacity text-red-600">Resetare Recenzie</button>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-full ui-card p-10 rounded-[3rem] text-center">
+                  <p className="font-serif italic text-xl text-black/35">Nu există încă recenzii.</p>
+                </div>
+              )}
             </div>
             {hasMoreReviews && (
               <div className="mt-8 flex justify-center">

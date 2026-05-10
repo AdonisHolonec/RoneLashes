@@ -509,11 +509,16 @@ export default function Home() {
     })
     
     if (response.ok) {
-      setReviewModalOpen(false); 
-      setReviewApp(null); 
-      setReviewText(''); 
-      setStarRating(5);
-      fetchClientAppointments(client.id);
+      setReviewModalOpen(false)
+      setReviewApp(null)
+      setReviewText('')
+      setStarRating(5)
+      fetchClientAppointments(client.id)
+      fetchGlobalData()
+      window.alert('Mulțumim pentru recenzie! 💖')
+    } else {
+      const payload = await response.json().catch(() => ({}))
+      window.alert(payload?.error || 'Recenzia nu a putut fi salvată.')
     }
   }
 
@@ -540,6 +545,13 @@ export default function Home() {
     [publicReviews]
   )
 
+  const reviewSummary = useMemo(() => {
+    const withRating = publicReviews.filter((a) => Number(a.rating) > 0)
+    if (withRating.length === 0) return { average: '0.0', count: 0 }
+    const total = withRating.reduce((acc, item) => acc + Number(item.rating || 0), 0)
+    return { average: (total / withRating.length).toFixed(1), count: withRating.length }
+  }, [publicReviews])
+
   const futureAppointments = useMemo(
     () => myAppointments.filter((a) => isAfter(parseISO(a.start_time), new Date())),
     [myAppointments]
@@ -554,6 +566,14 @@ export default function Home() {
     () =>
       pastAppointments
         .filter((a) => a.status !== 'rejected' && a.status !== 'canceled' && a.notes)
+        .sort((a, b) => b.start_time.localeCompare(a.start_time))[0] || null,
+    [pastAppointments]
+  )
+
+  const pendingReviewAppointment = useMemo(
+    () =>
+      pastAppointments
+        .filter((a) => a.status !== 'rejected' && a.status !== 'canceled' && Number(a.rating || 0) <= 0)
         .sort((a, b) => b.start_time.localeCompare(a.start_time))[0] || null,
     [pastAppointments]
   )
@@ -661,29 +681,47 @@ export default function Home() {
             )}
           </div>
 
-          {/* SECȚIUNE CARUSEL RECENZII CU AUTO-SCROLL */}
-          {reviewedAppointments.length > 0 && (
-            <div className="w-full max-w-md mt-14 animate-in fade-in">
-              <h3 className="text-2xl font-serif italic font-bold text-black text-center mb-6">Părerile Clientelor ✨</h3>
-              
+          {/* SECȚIUNE RECENZII PUBLICĂ */}
+          <section className="w-full max-w-md mt-14 animate-in fade-in">
+            <div className="flex items-end justify-between gap-4 mb-6 px-1">
+              <div className="text-left">
+                <p className="ui-meta mb-2">Recenzii verificate</p>
+                <h3 className="text-2xl font-serif italic font-bold text-black">Părerile Clientelor ✨</h3>
+              </div>
+              {reviewSummary.count > 0 && (
+                <div className="bg-white/80 border border-white/60 rounded-2xl px-4 py-3 text-right shadow-sm">
+                  <p className="text-xl font-black text-black">{reviewSummary.average} ★</p>
+                  <p className="text-[9px] font-black uppercase opacity-45 text-black">{reviewSummary.count} recenzii</p>
+                </div>
+              )}
+            </div>
+
+            {reviewedAppointments.length > 0 ? (
               <div ref={reviewsRef} className="flex gap-4 overflow-x-auto pb-6 snap-x px-6 -mx-6 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {reviewedAppointments.map(rev => (
                   <div key={rev.id} className="min-w-[260px] max-w-[260px] bg-white/90 p-6 rounded-[2rem] shadow-lg border border-white/40 snap-center shrink-0 whitespace-normal text-left">
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <p className="font-black text-sm text-black">{rev.client_name.split(' ')[0]}</p>
+                        <p className="font-black text-sm text-black">{String(rev.client_name || 'Clientă').split(' ')[0]}</p>
                         <p className="text-[9px] font-black uppercase text-[#e21a6e] mt-1 tracking-wider">{rev.notes}</p>
                       </div>
                       <div className="flex text-yellow-400 text-sm drop-shadow-sm">
-                          {"★".repeat(rev.rating)}
+                        {"★".repeat(rev.rating)}
                       </div>
                     </div>
                     <p className="text-xs italic font-medium text-black/80 leading-relaxed line-clamp-4">&quot;{rev.review_text}&quot;</p>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="ui-card-soft rounded-[2rem] p-6 text-center border border-white/60">
+                <p className="font-serif italic font-bold text-lg text-black">Recenziile vor apărea aici</p>
+                <p className="text-[11px] font-bold text-black/55 mt-2">
+                  După fiecare vizită, clientele pot lăsa o recenzie direct din cont.
+                </p>
+              </div>
+            )}
+          </section>
 
           <div className="w-full flex flex-col items-center mt-12">
              <section className="w-full max-w-md ui-card-soft rounded-[2rem] p-6 mb-10 text-left">
@@ -769,6 +807,28 @@ export default function Home() {
                   className="ui-btn ui-btn-primary w-full mt-4 py-4 rounded-2xl text-[10px] tracking-widest"
                 >
                   Reprogrameaza rapid
+                </button>
+              </div>
+            )}
+
+            {pendingReviewAppointment && (
+              <div className="ui-card p-6 rounded-[2.2rem] border-2 border-[#e21a6e]/20 bg-[#fff5f8]">
+                <p className="ui-meta mb-2 text-black">Recenzie după vizită</p>
+                <h4 className="font-serif italic font-bold text-xl text-black">Cum a fost experiența ta?</h4>
+                <p className="text-[11px] font-bold text-black/65 mt-2">
+                  Vizita din {safeFormatDate(pendingReviewAppointment.start_time, 'dd MMMM yyyy')} poate primi o recenzie.
+                  Ne ajută mult și durează mai puțin de un minut.
+                </p>
+                <button
+                  onClick={() => {
+                    setReviewApp(pendingReviewAppointment)
+                    setStarRating(5)
+                    setReviewText('')
+                    setReviewModalOpen(true)
+                  }}
+                  className="ui-btn ui-btn-primary w-full mt-4 py-4 rounded-2xl text-[10px] tracking-widest"
+                >
+                  Lasă recenzie
                 </button>
               </div>
             )}
