@@ -52,7 +52,13 @@ export default function AdminDashboard() {
     ip: string | null
     bookedAfterLogin: boolean
   }
+  type ClientLoginStats = {
+    totalClients: number
+    clientsWithBooking: number
+    bookingCoveragePct: number
+  }
   const [clientLoginRows, setClientLoginRows] = useState<ClientLoginRow[]>([])
+  const [clientLoginStats, setClientLoginStats] = useState<ClientLoginStats | null>(null)
   const [clientLoginsLoading, setClientLoginsLoading] = useState(false)
   const [clientLoginsDays, setClientLoginsDays] = useState<7 | 14 | 30>(30)
 
@@ -211,9 +217,22 @@ export default function AdminDashboard() {
         router.push('/login')
         return
       }
-      if (!response.ok) return
+      if (!response.ok) {
+        setClientLoginRows([])
+        setClientLoginStats(null)
+        return
+      }
       const payload = await response.json()
       setClientLoginRows(Array.isArray(payload?.items) ? payload.items : [])
+      if (payload?.stats && typeof payload.stats.totalClients === 'number') {
+        setClientLoginStats({
+          totalClients: payload.stats.totalClients,
+          clientsWithBooking: Number(payload.stats.clientsWithBooking ?? 0),
+          bookingCoveragePct: Number(payload.stats.bookingCoveragePct ?? 0),
+        })
+      } else {
+        setClientLoginStats(null)
+      }
     } finally {
       setClientLoginsLoading(false)
     }
@@ -1375,9 +1394,10 @@ export default function AdminDashboard() {
               <div>
                 <h2 className="text-4xl font-serif italic font-bold">Logări clienți</h2>
                 <p className="text-sm font-bold text-black/50 mt-2 max-w-xl">
-                  Autentificări și înregistrări reușite în portal, cu nume și telefon. „Programare după logare” înseamnă că
-                  există cel puțin o programare neanulată creată după momentul logării (folosește data înregistrării
-                  programării în baza de date).
+                  Logările vechi fără date salvate în eveniment sunt completate automat din tabelul <strong>clients</strong>{' '}
+                  (după ID sau după masca telefonului). „Programare după logare” = programare neanulată cu{' '}
+                  <strong>created_at</strong> după momentul logării. KPI-urile de mai jos privesc{' '}
+                  <strong>tot</strong> portofoliul de clienți, nu doar intervalul selectat pentru tabel.
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -1403,6 +1423,28 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </div>
+
+            {clientLoginStats !== null && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <div className="ui-card p-6 rounded-2xl border border-[var(--border-soft)]">
+                  <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Clienți înregistrați (total)</p>
+                  <p className="text-3xl font-black mt-2">{clientLoginStats.totalClients}</p>
+                </div>
+                <div className="ui-card p-6 rounded-2xl border border-[var(--border-soft)]">
+                  <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Cu programare activă</p>
+                  <p className="text-3xl font-black mt-2 text-[#e21a6e]">{clientLoginStats.clientsWithBooking}</p>
+                  <p className="text-[10px] font-bold text-black/45 mt-2">
+                    confirmată / finalizată (fără anulată sau refuzată)
+                  </p>
+                </div>
+                <div className="ui-card p-6 rounded-2xl border border-[var(--border-soft)]">
+                  <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">
+                    Rată acoperire — clienți cu programare / total clienți
+                  </p>
+                  <p className="text-3xl font-black mt-2">{clientLoginStats.bookingCoveragePct}%</p>
+                </div>
+              </div>
+            )}
 
             <div className="ui-card rounded-[2rem] overflow-hidden border border-[var(--border-soft)]">
               <div className="overflow-x-auto">
