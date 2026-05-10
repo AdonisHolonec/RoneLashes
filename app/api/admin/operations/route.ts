@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 import { ADMIN_AUTH_COOKIE, verifyAdminSessionToken } from '@/lib/admin-auth'
 import { hashClientPin } from '@/lib/client-pin'
 import { getServiceRoleSupabase } from '@/lib/service-role-supabase'
@@ -190,6 +191,41 @@ export async function POST(request: NextRequest) {
         .eq('id', appointmentId)
       if (error) return NextResponse.json({ error: 'Recenzia nu a putut fi resetată.' }, { status: 400 })
       return NextResponse.json({ ok: true })
+    }
+
+    if (action === 'create_review_link') {
+      const appointmentId = String(body?.appointmentId ?? '')
+      if (!appointmentId) return NextResponse.json({ error: 'Programare invalidă.' }, { status: 400 })
+
+      const { data: appointment } = await supabase
+        .from('appointments')
+        .select('id')
+        .eq('id', appointmentId)
+        .maybeSingle()
+
+      if (!appointment?.id) {
+        return NextResponse.json({ error: 'Programarea nu a fost găsită.' }, { status: 404 })
+      }
+
+      const { data: existing } = await supabase
+        .from('review_tokens')
+        .select('token')
+        .eq('appointment_id', appointment.id)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (existing?.token) return NextResponse.json({ ok: true, token: existing.token })
+
+      const token = randomBytes(24).toString('hex')
+      const { error } = await supabase.from('review_tokens').insert({
+        appointment_id: appointment.id,
+        token,
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      })
+      if (error) return NextResponse.json({ error: 'Linkul de recenzie nu a putut fi creat.' }, { status: 400 })
+      return NextResponse.json({ ok: true, token })
     }
 
     return NextResponse.json({ error: 'Invalid action.' }, { status: 400 })

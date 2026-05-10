@@ -57,7 +57,8 @@ Run SQL scripts in Supabase SQL Editor:
 1. `lib/auth-events.sql`
 2. `lib/auth-events-nominal.sql` (nume + telefon pentru logări reușite clienți în admin)
 3. `lib/client-personal-data-consent.sql` (dovada acordului pentru prelucrarea datelor personale la creare cont)
-4. `lib/rls-hardening-plan.sql`
+4. `lib/review-tokens.sql` (linkuri publice securizate pentru recenzii post-vizită)
+5. `lib/rls-hardening-plan.sql`
 
 After applying, verify:
 

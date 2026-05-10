@@ -1,10 +1,10 @@
--- Reminder logs for WhatsApp automation (24h / 2h).
+-- Reminder logs for WhatsApp automation (24h / 2h / review).
 -- Run in Supabase SQL editor before enabling cron in production.
 
 create table if not exists public.appointment_reminders (
   id uuid primary key default gen_random_uuid(),
   appointment_id uuid not null references public.appointments(id) on delete cascade,
-  reminder_type text not null check (reminder_type in ('24h', '2h')),
+  reminder_type text not null check (reminder_type in ('24h', '2h', 'review')),
   status text not null check (status in ('sent', 'failed')),
   provider_message_id text,
   error_message text,

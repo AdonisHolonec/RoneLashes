@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { format, parseISO, isSameDay, isAfter, isBefore, startOfMonth, endOfMonth, startOfYear, endOfYear, addMinutes } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
@@ -20,7 +20,7 @@ export default function AdminDashboard() {
 
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<
-    'appointments' | 'services' | 'portfolio' | 'reviews' | 'finance' | 'settings' | 'analytics' | 'clientLogins'
+    'appointments' | 'services' | 'portfolio' | 'reviews' | 'finance' | 'settings' | 'analytics' | 'clientLogins' | 'clients'
   >('appointments')
   
   // Date Bază
@@ -64,6 +64,33 @@ export default function AdminDashboard() {
   const [clientLoginsDays, setClientLoginsDays] = useState<7 | 14 | 30>(30)
   const [resetPinByClient, setResetPinByClient] = useState<Record<string, string>>({})
   const [resetPinLoadingId, setResetPinLoadingId] = useState<string | null>(null)
+
+  type AdminClientRow = {
+    id: string
+    fullName: string
+    phone: string
+    createdAt: string | null
+    consentAt: string | null
+    totalAppointments: number
+    completedAppointments: number
+    futureAppointments: number
+    totalSpent: number
+    lastVisitAt: string | null
+    nextVisitAt: string | null
+    averageRating: number | null
+  }
+  type AdminClientStats = {
+    totalClients: number
+    clientsWithAppointments: number
+    bookingCoveragePct: number
+    inactive45Days: number
+    totalRevenue: number
+  }
+  const [adminClients, setAdminClients] = useState<AdminClientRow[]>([])
+  const [adminClientStats, setAdminClientStats] = useState<AdminClientStats | null>(null)
+  const [adminClientsLoading, setAdminClientsLoading] = useState(false)
+  const [adminClientSearch, setAdminClientSearch] = useState('')
+  const [adminClientFilter, setAdminClientFilter] = useState<'all' | 'inactive'>('all')
 
   // State-uri Agenda & Calendar
   const [selectedAgendaDate, setSelectedAgendaDate] = useState<Date>(new Date())
@@ -241,6 +268,37 @@ export default function AdminDashboard() {
     }
   }
 
+  async function fetchAdminClients() {
+    setAdminClientsLoading(true)
+    try {
+      const response = await fetch('/api/admin/clients', { method: 'GET' })
+      if (response.status === 401) {
+        router.push('/login')
+        return
+      }
+      if (!response.ok) {
+        setAdminClients([])
+        setAdminClientStats(null)
+        return
+      }
+      const payload = await response.json()
+      setAdminClients(Array.isArray(payload?.clients) ? payload.clients : [])
+      if (payload?.stats && typeof payload.stats.totalClients === 'number') {
+        setAdminClientStats({
+          totalClients: Number(payload.stats.totalClients ?? 0),
+          clientsWithAppointments: Number(payload.stats.clientsWithAppointments ?? 0),
+          bookingCoveragePct: Number(payload.stats.bookingCoveragePct ?? 0),
+          inactive45Days: Number(payload.stats.inactive45Days ?? 0),
+          totalRevenue: Number(payload.stats.totalRevenue ?? 0),
+        })
+      } else {
+        setAdminClientStats(null)
+      }
+    } finally {
+      setAdminClientsLoading(false)
+    }
+  }
+
   async function fetchAdminData() {
     setLoading(true)
     try {
@@ -397,13 +455,13 @@ export default function AdminDashboard() {
     return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
   }
 
-  const buildReviewRequestMessage = (app: any) =>
-    `Bună, ${app.client_name}! Îți mulțumesc pentru vizita la RoneLashes din ${safeFormatDate(app.start_time, 'dd MMMM')} ✨\n\nM-aș bucura enorm dacă mi-ai lăsa o recenzie direct în contul tău din portal. Ajută alte cliente să aleagă cu încredere și pe mine mă ajută să îmbunătățesc experiența.\n\nIntră aici: ${process.env.NEXT_PUBLIC_SITE_URL || 'https://ronelashes.vercel.app'}`
+  const buildReviewRequestMessage = (app: any, reviewUrl: string) =>
+    `Bună, ${app.client_name}! Îți mulțumesc pentru vizita la RoneLashes din ${safeFormatDate(app.start_time, 'dd MMMM')} ✨\n\nM-aș bucura enorm dacă mi-ai lăsa o recenzie aici:\n${reviewUrl}\n\nDurează mai puțin de un minut și mă ajută mult. 💖`
 
   const buildPinResetMessage = (fullName: string, newPin: string) =>
     `Bună, ${fullName || 'dragă clientă'}! Ți-am resetat PIN-ul pentru portalul RoneLashes.\n\nPIN nou: ${newPin}\n\nTe poți loga cu numărul tău de telefon și acest PIN. Recomand să păstrezi mesajul privat.`
 
-  const handleResetClientPin = async (row: ClientLoginRow) => {
+  const handleResetClientPin = async (row: { clientId: string | null; fullName: string; phone: string }) => {
     if (!row.clientId) {
       alert('Clienta nu este identificată sigur pentru resetarea PIN-ului.')
       return
@@ -453,13 +511,34 @@ export default function AdminDashboard() {
   }
 
   const handleComplete = async (app: any) => {
-    window.open(buildWhatsAppHref(app.client_phone, buildReviewRequestMessage(app)), '_blank', 'noopener,noreferrer')
+    await handleRequestReview(app)
     if (app.status !== 'completed') await updateStatus(app.id, 'completed')
   }
 
-  const handleRequestReview = (app: any) => {
-    window.open(buildWhatsAppHref(app.client_phone, buildReviewRequestMessage(app)), '_blank', 'noopener,noreferrer')
+  const handleRequestReview = async (app: any) => {
+    const response = await fetch('/api/admin/operations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create_review_link', appointmentId: app.id }),
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok || !payload?.token) {
+      alert(payload?.error || 'Nu am putut crea linkul de recenzie.')
+      return
+    }
+    const reviewUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://ronelashes.vercel.app'}/review/${payload.token}`
+    window.open(buildWhatsAppHref(app.client_phone, buildReviewRequestMessage(app, reviewUrl)), '_blank', 'noopener,noreferrer')
   }
+
+  const isInactiveClient = useCallback((client: AdminClientRow) => {
+    if (client.futureAppointments > 0) return false
+    if (client.totalAppointments <= 0) return false
+    if (!client.lastVisitAt) return false
+    return new Date(client.lastVisitAt).getTime() < Date.now() - 45 * 24 * 60 * 60 * 1000
+  }, [])
+
+  const buildRetentionMessage = (client: AdminClientRow) =>
+    `Bună, ${client.fullName}! ✨\n\nNu ne-am mai văzut de ceva timp la RoneLashes și voiam să te întreb dacă dorești să îți rezerv un loc pentru întreținere / o nouă programare.\n\nÎmi poți scrie aici ce zi ți-ar fi potrivită. 💖`
 
   const openManualBooking = () => {
     setManualForm((prev) => ({
@@ -894,6 +973,15 @@ export default function AdminDashboard() {
   }, [analyticsDaily, bookingsDeltaPct, eventFunnel, topBusyDays])
   const visiblePortfolioPhotos = useMemo(() => photos, [photos])
   const visibleReviews = useMemo(() => reviews, [reviews])
+  const visibleAdminClients = useMemo(() => {
+    const q = adminClientSearch.trim().toLowerCase()
+    const filtered = adminClientFilter === 'inactive' ? adminClients.filter(isInactiveClient) : adminClients
+    if (!q) return filtered
+    return filtered.filter((client) => {
+      const haystack = `${client.fullName} ${client.phone}`.toLowerCase()
+      return haystack.includes(q)
+    })
+  }, [adminClients, adminClientFilter, adminClientSearch, isInactiveClient])
   const reviewRequests = useMemo(
     () =>
       appointments
@@ -980,6 +1068,9 @@ export default function AdminDashboard() {
     if (activeTab === 'clientLogins') {
       fetchClientLoginLog(clientLoginsDays)
     }
+    if (activeTab === 'clients') {
+      fetchAdminClients()
+    }
     // fetchClientLoginLog intentionally omitted from deps (stable enough for tab switches).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, analyticsRangeDays, clientLoginsDays])
@@ -999,6 +1090,7 @@ export default function AdminDashboard() {
               { id: 'settings', label: '⚙️ Program' },
               { id: 'finance', label: '💰 Venituri' },
               { id: 'analytics', label: '📈 Analytics' },
+              { id: 'clients', label: '👥 Cliente' },
               { id: 'clientLogins', label: '👤 Logări clienți' },
               { id: 'services', label: '💅 Servicii' },
               { id: 'portfolio', label: '📸 Portofoliu' },
@@ -1476,6 +1568,201 @@ export default function AdminDashboard() {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'clients' && (
+          <div className="animate-in fade-in duration-700">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+              <div>
+                <h2 className="text-4xl font-serif italic font-bold text-black">Cliente</h2>
+                <p className="text-sm font-bold text-black/50 mt-2 max-w-2xl">
+                  Profil rapid pentru fiecare clientă: contact, frecvență, venit total, ultima vizită și următoarea
+                  programare.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={fetchAdminClients}
+                disabled={adminClientsLoading}
+                className="px-5 py-3 bg-white border border-gray-200 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:border-black disabled:opacity-50"
+              >
+                {adminClientsLoading ? 'Se încarcă...' : 'Reîncarcă'}
+              </button>
+            </div>
+
+            {adminClientStats && (
+              <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
+                <div className="ui-card p-5 rounded-2xl">
+                  <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Total cliente</p>
+                  <p className="text-3xl font-black mt-2">{adminClientStats.totalClients}</p>
+                </div>
+                <div className="ui-card p-5 rounded-2xl">
+                  <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Cu programări</p>
+                  <p className="text-3xl font-black mt-2 text-[#e21a6e]">{adminClientStats.clientsWithAppointments}</p>
+                </div>
+                <div className="ui-card p-5 rounded-2xl">
+                  <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Acoperire</p>
+                  <p className="text-3xl font-black mt-2">{adminClientStats.bookingCoveragePct}%</p>
+                </div>
+                <div className="ui-card p-5 rounded-2xl">
+                  <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Inactive 45 zile</p>
+                  <p className="text-3xl font-black mt-2 text-orange-600">{adminClientStats.inactive45Days}</p>
+                </div>
+                <div className="ui-card p-5 rounded-2xl">
+                  <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Venit total</p>
+                  <p className="text-3xl font-black mt-2">{adminClientStats.totalRevenue} RON</p>
+                </div>
+              </div>
+            )}
+
+            <div className="ui-card p-4 rounded-[2rem] mb-8">
+              <input
+                value={adminClientSearch}
+                onChange={(e) => setAdminClientSearch(e.target.value)}
+                placeholder="Caută după nume sau telefon..."
+                className="ui-input text-black"
+              />
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={() => setAdminClientFilter('all')}
+                  className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${
+                    adminClientFilter === 'all' ? 'bg-black text-white' : 'bg-gray-50 text-black/50'
+                  }`}
+                >
+                  Toate
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminClientFilter('inactive')}
+                  className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${
+                    adminClientFilter === 'inactive' ? 'bg-orange-600 text-white' : 'bg-orange-50 text-orange-700'
+                  }`}
+                >
+                  Inactive 45 zile
+                </button>
+              </div>
+            </div>
+
+            {adminClientsLoading && adminClients.length === 0 ? (
+              <div className="ui-card p-12 rounded-[3rem] text-center">
+                <p className="font-black uppercase text-black/30 text-xs tracking-widest">Se încarcă lista de cliente...</p>
+              </div>
+            ) : visibleAdminClients.length === 0 ? (
+              <div className="ui-card p-12 rounded-[3rem] text-center">
+                <p className="font-serif italic text-xl text-black/35">Nu am găsit cliente pentru filtrul curent.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                {visibleAdminClients.map((client) => {
+                  const pinValue = resetPinByClient[client.id] || ''
+                  const message = `Bună, ${client.fullName}! Îți scriu de la RoneLashes. ✨`
+                  const inactive = isInactiveClient(client)
+                  return (
+                    <div key={client.id} className="ui-card p-6 rounded-[2.5rem] border border-[var(--border-soft)] text-black">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-5">
+                        <div>
+                          <h3 className="text-xl font-black leading-tight">{client.fullName}</h3>
+                          <p className="font-mono text-xs text-black/45 mt-1">{client.phone}</p>
+                          <p className="text-[10px] font-black uppercase text-[#e21a6e] tracking-widest mt-2">
+                            {client.consentAt ? 'Acord date salvat' : 'Fără acord salvat'}
+                          </p>
+                          {inactive && (
+                            <p className="inline-block mt-2 bg-orange-50 text-orange-700 rounded-full px-3 py-1 text-[9px] font-black uppercase">
+                              inactivă 45+ zile
+                            </p>
+                          )}
+                        </div>
+                        <div className="bg-[#fff5f8] border border-[#e21a6e]/15 rounded-2xl px-4 py-3 text-right">
+                          <p className="text-2xl font-black">{client.totalSpent} RON</p>
+                          <p className="text-[9px] font-black uppercase opacity-45">total cheltuit</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+                        <div className="bg-gray-50 rounded-2xl p-3">
+                          <p className="text-[9px] font-black uppercase opacity-40">Programări</p>
+                          <p className="text-xl font-black">{client.totalAppointments}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-2xl p-3">
+                          <p className="text-[9px] font-black uppercase opacity-40">Viitoare</p>
+                          <p className="text-xl font-black">{client.futureAppointments}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-2xl p-3">
+                          <p className="text-[9px] font-black uppercase opacity-40">Rating</p>
+                          <p className="text-xl font-black">{client.averageRating ? `${client.averageRating} ★` : '—'}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-2xl p-3">
+                          <p className="text-[9px] font-black uppercase opacity-40">Din</p>
+                          <p className="text-sm font-black">
+                            {client.createdAt ? safeFormatDate(client.createdAt, 'MMM yyyy') : '—'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                        <div className="border border-gray-100 rounded-2xl p-4">
+                          <p className="text-[9px] font-black uppercase opacity-40">Ultima vizită</p>
+                          <p className="text-sm font-black mt-1">
+                            {client.lastVisitAt ? safeFormatDate(client.lastVisitAt, 'dd MMM yyyy, HH:mm') : 'Nicio vizită'}
+                          </p>
+                        </div>
+                        <div className="border border-gray-100 rounded-2xl p-4">
+                          <p className="text-[9px] font-black uppercase opacity-40">Următoarea programare</p>
+                          <p className="text-sm font-black mt-1">
+                            {client.nextVisitAt ? safeFormatDate(client.nextVisitAt, 'dd MMM yyyy, HH:mm') : 'Neprogramată'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
+                        <a
+                          href={buildWhatsAppHref(client.phone, message)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full py-3 bg-[#25D366] text-white rounded-2xl font-black uppercase text-[10px] tracking-widest text-center"
+                        >
+                          WhatsApp
+                        </a>
+                        {inactive && (
+                          <a
+                            href={buildWhatsAppHref(client.phone, buildRetentionMessage(client))}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full py-3 bg-orange-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest text-center"
+                          >
+                            Recontactare
+                          </a>
+                        )}
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={8}
+                            value={pinValue}
+                            onChange={(e) => {
+                              const next = e.target.value.replace(/\D/g, '')
+                              setResetPinByClient((prev) => ({ ...prev, [client.id]: next }))
+                            }}
+                            placeholder="PIN nou"
+                            className="w-full sm:w-28 px-3 py-3 rounded-2xl border border-gray-200 bg-white font-black text-xs text-center"
+                          />
+                          <button
+                            type="button"
+                            disabled={resetPinLoadingId === client.id}
+                            onClick={() => handleResetClientPin({ clientId: client.id, fullName: client.fullName, phone: client.phone })}
+                            className="px-4 py-3 rounded-2xl bg-black text-white font-black uppercase text-[9px] tracking-widest disabled:opacity-35"
+                          >
+                            {resetPinLoadingId === client.id ? '...' : 'PIN'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 

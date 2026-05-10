@@ -684,7 +684,16 @@ export default function Home() {
                   />
                   <span className="text-[11px] font-bold leading-relaxed text-black/70">
                     Sunt de acord cu prelucrarea datelor personale (nume, telefon, programări și preferințe) pentru
-                    {isRegistering ? ' crearea contului,' : ' continuarea utilizării contului,'} gestionarea programărilor și comunicarea cu salonul RoneLashes.
+                    {isRegistering ? ' crearea contului,' : ' continuarea utilizării contului,'} gestionarea programărilor și comunicarea cu salonul RoneLashes.{' '}
+                    <a
+                      href="/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-black text-[#e21a6e] underline underline-offset-2"
+                    >
+                      Citește politica de confidențialitate
+                    </a>
+                    .
                   </span>
                 </label>
               )}
@@ -702,6 +711,9 @@ export default function Home() {
                 Am uitat codul PIN
               </a>
             )}
+            <a href="/privacy" className="mt-5 block text-[9px] font-black uppercase opacity-35 hover:opacity-80 text-black tracking-widest">
+              Politica de confidențialitate
+            </a>
           </div>
 
           {/* SECȚIUNE RECENZII PUBLICĂ */}

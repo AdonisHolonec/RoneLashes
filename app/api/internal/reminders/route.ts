@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 import { getServiceRoleSupabase } from '@/lib/service-role-supabase'
 
-type ReminderType = '24h' | '2h'
+type ReminderType = '24h' | '2h' | 'review'
 
 type AppointmentRow = {
   id: string
   client_name: string | null
   client_phone: string | null
   start_time: string
+  end_time?: string | null
+  rating?: number | null
 }
 
 const cronSecret = process.env.CRON_SECRET || ''
@@ -16,6 +19,7 @@ const whatsappPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || ''
 const whatsappApiVersion = process.env.WHATSAPP_API_VERSION || 'v20.0'
 const whatsappTemplateName = process.env.WHATSAPP_TEMPLATE_NAME || ''
 const whatsappTemplateLang = process.env.WHATSAPP_TEMPLATE_LANG || 'ro'
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://ronelashes.vercel.app'
 
 const REMINDER_TIMEZONE = 'Europe/Bucharest'
 /** How far ahead we load appointments (covers “tomorrow” in RO + ~2h window + DST margin). */
@@ -64,7 +68,7 @@ function normalizeRoPhone(raw: string) {
   return digits
 }
 
-function buildReminderText(reminderType: ReminderType, appointment: AppointmentRow) {
+function buildReminderText(reminderType: ReminderType, appointment: AppointmentRow, reviewUrl?: string) {
   const startDate = new Date(appointment.start_time)
   const niceDate = new Intl.DateTimeFormat('ro-RO', {
     timeZone: REMINDER_TIMEZONE,
@@ -74,12 +78,39 @@ function buildReminderText(reminderType: ReminderType, appointment: AppointmentR
     hour: '2-digit',
     minute: '2-digit',
   }).format(startDate)
+  if (reminderType === 'review') {
+    return `Buna, ${appointment.client_name || 'draga clienta'}! Iti multumesc pentru vizita la RoneLashes. ✨\n\nM-as bucura enorm daca imi lasi o recenzie aici:\n${reviewUrl}\n\nDureaza mai putin de un minut si ma ajuta mult. 💖`
+  }
+
   const intro =
     reminderType === '24h'
       ? 'Reminder pentru programarea de maine'
       : 'Reminder pentru programarea care urmeaza in aproximativ 2 ore'
 
   return `${intro} la RoneLashes.\n\n${appointment.client_name || 'Clienta'} - ${niceDate}\n\nDaca ai nevoie sa modifici ora, te rugam sa ne anunti din timp.`
+}
+
+async function getOrCreateReviewToken(supabase: ReturnType<typeof getServiceRoleSupabase>, appointmentId: string) {
+  const { data: existing } = await supabase
+    .from('review_tokens')
+    .select('token, expires_at')
+    .eq('appointment_id', appointmentId)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (existing?.token) return String(existing.token)
+
+  const token = randomBytes(24).toString('hex')
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+  const { error } = await supabase.from('review_tokens').insert({
+    appointment_id: appointmentId,
+    token,
+    expires_at: expiresAt,
+  })
+  if (error) throw error
+  return token
 }
 
 function detectReminderType(startTimeIso: string, nowMs: number): ReminderType | null {
@@ -162,25 +193,43 @@ export async function GET(request: NextRequest) {
     const supabase = getServiceRoleSupabase()
     const now = new Date()
     const upperBound = new Date(now.getTime() + QUERY_HORIZON_HOURS * 60 * 60 * 1000).toISOString()
+    const reviewLowerBound = new Date(now.getTime() - 8 * 60 * 60 * 1000).toISOString()
+    const reviewUpperBound = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString()
 
-    const { data: appointments, error: appointmentsError } = await supabase
-      .from('appointments')
-      .select('id, client_name, client_phone, start_time')
-      .eq('status', 'confirmed')
-      .gt('start_time', now.toISOString())
-      .lte('start_time', upperBound)
-      .neq('client_phone', '-')
+    const [{ data: appointments, error: appointmentsError }, { data: reviewAppointments, error: reviewError }] =
+      await Promise.all([
+        supabase
+          .from('appointments')
+          .select('id, client_name, client_phone, start_time')
+          .eq('status', 'confirmed')
+          .gt('start_time', now.toISOString())
+          .lte('start_time', upperBound)
+          .neq('client_phone', '-'),
+        supabase
+          .from('appointments')
+          .select('id, client_name, client_phone, start_time, end_time, status, rating')
+          .in('status', ['completed', 'confirmed'])
+          .gte('end_time', reviewLowerBound)
+          .lte('end_time', reviewUpperBound)
+          .neq('client_phone', '-'),
+      ])
 
-    if (appointmentsError) {
+    if (appointmentsError || reviewError) {
       return NextResponse.json({ error: 'Could not load appointments.' }, { status: 500 })
     }
 
-    const candidates = (appointments || [])
+    const reminderCandidates = (appointments || [])
       .map((appointment) => {
         const reminderType = detectReminderType(appointment.start_time, now.getTime())
         return reminderType ? { ...appointment, reminderType } : null
       })
       .filter((x): x is AppointmentRow & { reminderType: ReminderType } => Boolean(x))
+
+    const reviewCandidates = (reviewAppointments || [])
+      .filter((appointment) => Number(appointment.rating || 0) <= 0)
+      .map((appointment) => ({ ...appointment, reminderType: 'review' as const }))
+
+    const candidates = [...reminderCandidates, ...reviewCandidates]
 
     if (candidates.length === 0) {
       return NextResponse.json({ ok: true, processed: 0, sent: 0 })
@@ -223,9 +272,14 @@ export async function GET(request: NextRequest) {
       }
 
       try {
+        let reviewUrl = ''
+        if (appointment.reminderType === 'review') {
+          const token = await getOrCreateReviewToken(supabase, appointment.id)
+          reviewUrl = `${siteUrl}/review/${token}`
+        }
         const messageId = await sendWhatsAppText(
           normalizedPhone,
-          buildReminderText(appointment.reminderType, appointment),
+          buildReminderText(appointment.reminderType, appointment, reviewUrl),
         )
         sentCount += 1
         await supabase.from('appointment_reminders').insert({
