@@ -671,35 +671,35 @@ export default function Home() {
                 <a href="tel:+40743584475" className="text-sm font-bold italic font-serif text-black hover:text-[#e21a6e] transition-colors">0743 584 475</a>
             </div>
 
-            {!isStandalonePwa && (
-              <div className="w-full max-w-sm mb-6">
-                <button
-                  type="button"
-                  onClick={handleInstallApp}
-                  className="w-full rounded-[2rem] bg-white border-2 border-[#e21a6e]/25 px-5 py-4 text-left shadow-xl shadow-[#e21a6e]/10 active:scale-[0.98] transition-all"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-[#e21a6e] text-white flex items-center justify-center font-black text-xl shadow-lg">
-                      +
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-[11px] font-black uppercase tracking-widest text-[#e21a6e]">
-                        Adaugă aplicația pe telefon
-                      </p>
-                      <p className="text-xs font-bold text-black/65 mt-1">
-                        Acces rapid la programări direct de pe ecranul principal.
-                      </p>
-                    </div>
+            <div className="w-full max-w-sm mb-6">
+              <button
+                type="button"
+                onClick={handleInstallApp}
+                className="w-full rounded-[2rem] bg-white border-2 border-[#e21a6e]/35 px-5 py-4 text-left shadow-xl shadow-[#e21a6e]/15 active:scale-[0.98] transition-all"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-[#e21a6e] text-white flex items-center justify-center font-black text-xl shadow-lg">
+                    +
                   </div>
-                </button>
-                {showInstallHelp && (
-                  <div className="mt-3 rounded-2xl bg-white border border-[#e21a6e]/15 p-4 text-left text-[11px] font-bold text-black/65 leading-relaxed shadow-sm">
-                    Pe iPhone: apasă butonul Share din Safari, apoi <strong>Adaugă pe ecranul principal</strong>.
-                    Pe Android: folosește opțiunea <strong>Instalează aplicația</strong> sau <strong>Add to Home screen</strong>.
+                  <div className="flex-1">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-[#e21a6e]">
+                      {isStandalonePwa ? 'Aplicația este instalată' : 'Adaugă aplicația pe telefon'}
+                    </p>
+                    <p className="text-xs font-bold text-black/65 mt-1">
+                      {isStandalonePwa
+                        ? 'Ai acces rapid la programări direct din aplicație.'
+                        : 'Apasă aici pentru pașii de instalare pe iPhone sau Android.'}
+                    </p>
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              </button>
+              {showInstallHelp && (
+                <div className="mt-3 rounded-2xl bg-white border border-[#e21a6e]/15 p-4 text-left text-[11px] font-bold text-black/65 leading-relaxed shadow-sm">
+                  Pe iPhone: apasă butonul Share din Safari, apoi <strong>Adaugă pe ecranul principal</strong>.
+                  Pe Android: folosește opțiunea <strong>Instalează aplicația</strong> sau <strong>Add to Home screen</strong>.
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="ui-card p-8 rounded-[2.25rem] w-full max-w-sm animate-in zoom-in">
