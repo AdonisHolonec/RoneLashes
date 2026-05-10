@@ -204,7 +204,7 @@ export async function POST(request: Request) {
 
       const { data, error } = await supabase
         .from('clients')
-        .select('id, phone, full_name, pin')
+        .select('id, phone, full_name, pin, personal_data_consent_at')
         .eq('phone', phone)
         .single()
 
@@ -237,8 +237,27 @@ export async function POST(request: Request) {
 
       resetClientLoginFailures(lockKey)
 
+      if (!data.personal_data_consent_at && !personalDataConsent) {
+        return NextResponse.json(
+          {
+            error: 'Pentru continuarea autentificării este necesar acordul pentru prelucrarea datelor personale.',
+            requiresPersonalDataConsent: true,
+          },
+          { status: 409 },
+        )
+      }
+
+      const clientUpdates: Record<string, string> = {}
       if (pinCheck.needsUpgrade) {
-        await supabase.from('clients').update({ pin: hashClientPin(pin) }).eq('id', data.id)
+        clientUpdates.pin = hashClientPin(pin)
+      }
+      if (!data.personal_data_consent_at && personalDataConsent) {
+        clientUpdates.personal_data_consent_at = new Date().toISOString()
+        clientUpdates.personal_data_consent_version = '2026-05-10'
+        clientUpdates.personal_data_consent_ip = ip
+      }
+      if (Object.keys(clientUpdates).length > 0) {
+        await supabase.from('clients').update(clientUpdates).eq('id', data.id)
       }
 
       const client = {

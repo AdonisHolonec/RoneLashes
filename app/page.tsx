@@ -41,6 +41,7 @@ export default function Home() {
   const [fullName, setFullName] = useState('')
   const [isRegistering, setIsRegistering] = useState(false)
   const [personalDataConsent, setPersonalDataConsent] = useState(false)
+  const [loginRequiresPersonalDataConsent, setLoginRequiresPersonalDataConsent] = useState(false)
 
   // Booking States
   const [services, setServices] = useState<any[]>([])
@@ -218,8 +219,12 @@ export default function Home() {
       })
       const payload = await response.json()
       if (!response.ok || !payload?.client) {
+        if (payload?.requiresPersonalDataConsent) {
+          setLoginRequiresPersonalDataConsent(true)
+        }
         return window.alert(payload?.error || 'Autentificare eșuată.')
       }
+      setLoginRequiresPersonalDataConsent(false)
       loginClient(payload.client)
     } catch {
       window.alert('Nu am putut procesa autentificarea. Încearcă din nou.')
@@ -656,7 +661,7 @@ export default function Home() {
                 data-testid="client-auth-phone"
                 className="ui-input text-center text-black" 
                 value={phone} 
-                onChange={e => setPhone(e.target.value.replace(/\D/g, ''))} 
+                onChange={e => { setPhone(e.target.value.replace(/\D/g, '')); setLoginRequiresPersonalDataConsent(false); }} 
               />
               <input 
                 type="password" 
@@ -665,10 +670,10 @@ export default function Home() {
                 data-testid="client-auth-pin"
                 className="ui-input text-center text-lg font-bold tracking-widest text-black" 
                 value={pin} 
-                onChange={e => setPin(e.target.value.replace(/\D/g, ''))} 
+                onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setLoginRequiresPersonalDataConsent(false); }} 
               />
 
-              {isRegistering && (
+              {(isRegistering || loginRequiresPersonalDataConsent) && (
                 <label className="flex items-start gap-3 text-left bg-[#fff5f8] border border-[#e21a6e]/15 rounded-2xl p-4 cursor-pointer">
                   <input
                     type="checkbox"
@@ -679,16 +684,16 @@ export default function Home() {
                   />
                   <span className="text-[11px] font-bold leading-relaxed text-black/70">
                     Sunt de acord cu prelucrarea datelor personale (nume, telefon, programări și preferințe) pentru
-                    crearea contului, gestionarea programărilor și comunicarea cu salonul RoneLashes.
+                    {isRegistering ? ' crearea contului,' : ' continuarea utilizării contului,'} gestionarea programărilor și comunicarea cu salonul RoneLashes.
                   </span>
                 </label>
               )}
               
-              <button data-testid="client-auth-submit" disabled={authSubmitting || (isRegistering && !personalDataConsent)} onClick={handleAuth} className="ui-btn ui-btn-primary w-full py-5 text-xs tracking-widest active:scale-95 disabled:opacity-50">
+              <button data-testid="client-auth-submit" disabled={authSubmitting || ((isRegistering || loginRequiresPersonalDataConsent) && !personalDataConsent)} onClick={handleAuth} className="ui-btn ui-btn-primary w-full py-5 text-xs tracking-widest active:scale-95 disabled:opacity-50">
                 {authSubmitting ? 'Se procesează...' : isRegistering ? 'Creează Cont' : 'Intră în Cont'}
               </button>
               
-              <button data-testid="client-auth-toggle" onClick={() => { setIsRegistering(!isRegistering); setPersonalDataConsent(false); }} className="text-[10px] font-black uppercase opacity-40 tracking-widest mt-4 text-black">
+              <button data-testid="client-auth-toggle" onClick={() => { setIsRegistering(!isRegistering); setPersonalDataConsent(false); setLoginRequiresPersonalDataConsent(false); }} className="text-[10px] font-black uppercase opacity-40 tracking-widest mt-4 text-black">
                 {isRegistering ? 'Ai deja cont? Loghează-te' : 'Clientă nouă? Înregistrează-te'}
               </button>
             </div>
