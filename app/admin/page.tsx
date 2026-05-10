@@ -11,6 +11,17 @@ import 'react-day-picker/dist/style.css'
 
 const daysMap = ['Duminică', 'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă']
 
+type ContactPickerContact = {
+  name?: string[]
+  tel?: string[]
+}
+
+type NavigatorWithContacts = Navigator & {
+  contacts?: {
+    select: (properties: string[], options?: { multiple?: boolean }) => Promise<ContactPickerContact[]>
+  }
+}
+
 export default function AdminDashboard() {
   type AnalyticsEvent = {
     event_name: string
@@ -468,6 +479,35 @@ export default function AdminDashboard() {
       time: '',
     }))
     setShowManualBooking(true)
+  }
+
+  const importContactForManualBooking = async () => {
+    const contactsApi = (navigator as NavigatorWithContacts).contacts
+    if (!contactsApi?.select) {
+      alert('Importul din agenda telefonului este disponibil doar pe unele browsere mobile (ex. Chrome pe Android) și doar pe HTTPS.')
+      return
+    }
+
+    try {
+      const contacts = await contactsApi.select(['name', 'tel'], { multiple: false })
+      const contact = contacts?.[0]
+      const contactName = contact?.name?.[0]?.trim() || ''
+      const contactPhone = contact?.tel?.[0]?.replace(/\D/g, '') || ''
+
+      if (!contactName && !contactPhone) {
+        alert('Contactul selectat nu conține nume sau telefon.')
+        return
+      }
+
+      setManualForm((prev) => ({
+        ...prev,
+        name: contactName || prev.name,
+        phone: contactPhone || prev.phone,
+      }))
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      alert('Nu am putut importa contactul selectat.')
+    }
   }
 
   const handleRemind = (app: any) => {
@@ -1148,6 +1188,13 @@ export default function AdminDashboard() {
               <button onClick={() => { setShowManualBooking(false); setIsExistingClient(false); }} className="absolute top-8 right-8 w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center font-black text-black hover:bg-gray-200">✕</button>
               <h3 className="text-2xl font-serif italic font-bold mb-8 text-black text-center">Programare Manuală</h3>
               <div className="space-y-4 mb-8 text-black">
+                <button
+                  type="button"
+                  onClick={importContactForManualBooking}
+                  className="ui-btn w-full py-4 bg-[#fff5f8] text-[#e21a6e] border border-[#e21a6e]/20 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-[#e21a6e] hover:text-white transition-colors"
+                >
+                  Importă din contacte
+                </button>
                 <input placeholder="Telefon Clientă" className="ui-input" value={manualForm.phone} onChange={e => setManualForm({...manualForm, phone: e.target.value})} />
                 <input placeholder="Nume Clientă" className={`ui-input ${isExistingClient ? 'border-green-500' : ''}`} value={manualForm.name} onChange={e => setManualForm({...manualForm, name: e.target.value})} />
                 <select className="ui-input" value={manualForm.serviceId} onChange={e => setManualForm({...manualForm, serviceId: e.target.value, time: ''})}>
@@ -1542,12 +1589,12 @@ export default function AdminDashboard() {
                 <table className="w-full text-left text-sm text-black">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50/80">
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Data / ora</th>
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Tip</th>
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Nume</th>
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Telefon</th>
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Programare după logare</th>
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Reset PIN</th>
+                      <th className="px-3 md:px-4 py-3 text-[10px] font-black uppercase tracking-widest">Data</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest hidden md:table-cell">Tip</th>
+                      <th className="px-3 md:px-4 py-3 text-[10px] font-black uppercase tracking-widest">Clientă</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest hidden sm:table-cell">Telefon</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest hidden lg:table-cell">Programare după logare</th>
+                      <th className="px-3 md:px-4 py-3 text-[10px] font-black uppercase tracking-widest">Reset</th>
                       <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest hidden lg:table-cell">IP</th>
                     </tr>
                   </thead>
@@ -1567,10 +1614,11 @@ export default function AdminDashboard() {
                     ) : (
                       clientLoginRows.map((row) => (
                         <tr key={row.id} className="border-b border-gray-50 last:border-0 hover:bg-[#fff5f8]/50">
-                          <td className="px-4 py-3 whitespace-nowrap font-bold">
-                            {format(parseISO(row.at), 'dd MMM yyyy, HH:mm', { locale: ro })}
+                          <td className="px-3 md:px-4 py-3 whitespace-nowrap font-bold text-xs md:text-sm">
+                            <span className="hidden sm:inline">{format(parseISO(row.at), 'dd MMM yyyy, HH:mm', { locale: ro })}</span>
+                            <span className="sm:hidden">{format(parseISO(row.at), 'dd MMM', { locale: ro })}<br />{format(parseISO(row.at), 'HH:mm', { locale: ro })}</span>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 hidden md:table-cell">
                             <span
                               className={`inline-block text-[9px] font-black uppercase px-2 py-1 rounded-lg ${
                                 row.kind === 'Înregistrare' ? 'bg-[#e21a6e]/15 text-[#e21a6e]' : 'bg-gray-100 text-gray-700'
@@ -1579,17 +1627,23 @@ export default function AdminDashboard() {
                               {row.kind}
                             </span>
                           </td>
-                          <td className="px-4 py-3 font-bold">{row.fullName}</td>
-                          <td className="px-4 py-3 font-mono text-xs">{row.phone}</td>
-                          <td className="px-4 py-3">
+                          <td className="px-3 md:px-4 py-3 font-bold">
+                            <span className="block max-w-[120px] md:max-w-none truncate">{row.fullName}</span>
+                            <span className="sm:hidden block font-mono text-[10px] text-black/45 mt-1">{row.phone}</span>
+                            <span className="md:hidden inline-block mt-1 text-[8px] font-black uppercase px-2 py-0.5 rounded-lg bg-gray-100 text-gray-600">
+                              {row.kind}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs hidden sm:table-cell">{row.phone}</td>
+                          <td className="px-4 py-3 hidden lg:table-cell">
                             {row.bookedAfterLogin ? (
                               <span className="text-green-600 font-black text-xs uppercase">Da</span>
                             ) : (
                               <span className="text-black/35 font-bold text-xs uppercase">Nu</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 min-w-[220px]">
-                            <div className="flex items-center gap-2">
+                          <td className="px-3 md:px-4 py-3">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 min-w-[92px] sm:min-w-[190px]">
                               <input
                                 type="text"
                                 inputMode="numeric"
@@ -1602,13 +1656,13 @@ export default function AdminDashboard() {
                                   setResetPinByClient((prev) => ({ ...prev, [row.clientId!]: next }))
                                 }}
                                 placeholder={row.clientId ? 'PIN nou' : 'N/A'}
-                                className="w-24 px-3 py-2 rounded-xl border border-gray-200 bg-white font-black text-xs text-center disabled:opacity-40"
+                                className="w-full sm:w-24 px-2 sm:px-3 py-2 rounded-xl border border-gray-200 bg-white font-black text-xs text-center disabled:opacity-40"
                               />
                               <button
                                 type="button"
                                 disabled={!row.clientId || resetPinLoadingId === row.clientId}
                                 onClick={() => handleResetClientPin(row)}
-                                className="px-3 py-2 rounded-xl bg-black text-white font-black uppercase text-[9px] tracking-widest disabled:opacity-35"
+                                className="px-2 sm:px-3 py-2 rounded-xl bg-black text-white font-black uppercase text-[8px] sm:text-[9px] tracking-widest disabled:opacity-35"
                               >
                                 {resetPinLoadingId === row.clientId ? '...' : 'Trimite'}
                               </button>
