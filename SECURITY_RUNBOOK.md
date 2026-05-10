@@ -55,7 +55,8 @@ Reminder **„24h”** în cod = **ziua calendaristică anterioară** programăr
 Run SQL scripts in Supabase SQL Editor:
 
 1. `lib/auth-events.sql`
-2. `lib/rls-hardening-plan.sql`
+2. `lib/auth-events-nominal.sql` (nume + telefon pentru logări reușite clienți în admin)
+3. `lib/rls-hardening-plan.sql`
 
 After applying, verify:
 

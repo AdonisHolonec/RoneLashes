@@ -7,10 +7,20 @@ type AuthAuditEvent = {
   phone?: string
   ip?: string
   reason?: string
+  /** Successful client login/register only — persisted for admin nominal log. */
+  clientId?: string
+  fullName?: string
 }
 
-async function persistAuthAuditEvent(event: AuthAuditEvent, safePhone: string) {
+async function persistAuthAuditEvent(event: AuthAuditEvent, safePhone: string): Promise<void> {
   const supabase = getServiceRoleSupabase()
+  const nominate =
+    event.area === 'client' &&
+    event.outcome === 'success' &&
+    (event.action === 'login' || event.action === 'register') &&
+    event.clientId &&
+    event.phone
+
   await supabase.from('auth_events').insert({
     area: event.area,
     action: event.action,
@@ -18,6 +28,9 @@ async function persistAuthAuditEvent(event: AuthAuditEvent, safePhone: string) {
     phone_masked: safePhone,
     ip_address: event.ip || null,
     reason: event.reason || null,
+    client_id: nominate ? event.clientId : null,
+    client_full_name: nominate ? (event.fullName || null) : null,
+    client_phone: nominate ? event.phone : null,
   })
 }
 

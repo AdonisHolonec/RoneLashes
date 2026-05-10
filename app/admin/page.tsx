@@ -19,7 +19,9 @@ export default function AdminDashboard() {
   }
 
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'appointments' | 'services' | 'portfolio' | 'reviews' | 'finance' | 'settings' | 'analytics'>('appointments')
+  const [activeTab, setActiveTab] = useState<
+    'appointments' | 'services' | 'portfolio' | 'reviews' | 'finance' | 'settings' | 'analytics' | 'clientLogins'
+  >('appointments')
   
   // Date Bază
   const [appointments, setAppointments] = useState<any[]>([])
@@ -40,6 +42,19 @@ export default function AdminDashboard() {
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [analyticsRangeDays, setAnalyticsRangeDays] = useState<7 | 14 | 30>(14)
   const [analyticsLastUpdated, setAnalyticsLastUpdated] = useState<Date | null>(null)
+
+  type ClientLoginRow = {
+    id: string
+    at: string
+    kind: string
+    fullName: string
+    phone: string
+    ip: string | null
+    bookedAfterLogin: boolean
+  }
+  const [clientLoginRows, setClientLoginRows] = useState<ClientLoginRow[]>([])
+  const [clientLoginsLoading, setClientLoginsLoading] = useState(false)
+  const [clientLoginsDays, setClientLoginsDays] = useState<7 | 14 | 30>(30)
 
   // State-uri Agenda & Calendar
   const [selectedAgendaDate, setSelectedAgendaDate] = useState<Date>(new Date())
@@ -185,6 +200,22 @@ export default function AdminDashboard() {
       setAnalyticsLastUpdated(new Date())
     } finally {
       setAnalyticsLoading(false)
+    }
+  }
+
+  async function fetchClientLoginLog(days: 7 | 14 | 30) {
+    setClientLoginsLoading(true)
+    try {
+      const response = await fetch(`/api/admin/client-logins?days=${days}`, { method: 'GET' })
+      if (response.status === 401) {
+        router.push('/login')
+        return
+      }
+      if (!response.ok) return
+      const payload = await response.json()
+      setClientLoginRows(Array.isArray(payload?.items) ? payload.items : [])
+    } finally {
+      setClientLoginsLoading(false)
     }
   }
 
@@ -836,7 +867,12 @@ export default function AdminDashboard() {
     if (activeTab === 'settings') {
       fetchServiceOrderConfig()
     }
-  }, [activeTab, analyticsRangeDays])
+    if (activeTab === 'clientLogins') {
+      fetchClientLoginLog(clientLoginsDays)
+    }
+    // fetchClientLoginLog intentionally omitted from deps (stable enough for tab switches).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, analyticsRangeDays, clientLoginsDays])
 
   if (loading) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-black/20 bg-[var(--background)]">RoneAdmin...</div>
 
@@ -848,7 +884,16 @@ export default function AdminDashboard() {
         <div>
           <h1 className="text-2xl md:text-3xl font-serif italic font-bold mb-8 md:mb-12 text-center md:text-left">RoneLashes</h1>
           <nav className="flex md:flex-col gap-2 overflow-x-auto no-scrollbar md:overflow-visible pb-4 md:pb-0">
-            {[ { id: 'appointments', label: '📅 Agenda' }, { id: 'settings', label: '⚙️ Program' }, { id: 'finance', label: '💰 Venituri' }, { id: 'analytics', label: '📈 Analytics' }, { id: 'services', label: '💅 Servicii' }, { id: 'portfolio', label: '📸 Portofoliu' }, { id: 'reviews', label: '⭐ Recenzii' } ].map((t: any) => (
+            {[
+              { id: 'appointments', label: '📅 Agenda' },
+              { id: 'settings', label: '⚙️ Program' },
+              { id: 'finance', label: '💰 Venituri' },
+              { id: 'analytics', label: '📈 Analytics' },
+              { id: 'clientLogins', label: '👤 Logări clienți' },
+              { id: 'services', label: '💅 Servicii' },
+              { id: 'portfolio', label: '📸 Portofoliu' },
+              { id: 'reviews', label: '⭐ Recenzii' },
+            ].map((t: any) => (
               <button data-testid={`admin-tab-${t.id}`} key={t.id} onClick={() => setActiveTab(t.id)} className={`ui-btn px-5 md:px-8 py-3 md:py-5 rounded-2xl font-black uppercase text-[10px] md:text-[11px] tracking-widest transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-[#e21a6e] text-white shadow-xl scale-105' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}> {t.label} </button>
             ))}
             <button onClick={handleLogout} className="md:hidden px-5 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all bg-red-500/10 text-red-400">Deconectare</button>
@@ -1319,6 +1364,102 @@ export default function AdminDashboard() {
                     {idx + 1}. {text}
                   </p>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'clientLogins' && (
+          <div className="animate-in fade-in duration-700">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+              <div>
+                <h2 className="text-4xl font-serif italic font-bold">Logări clienți</h2>
+                <p className="text-sm font-bold text-black/50 mt-2 max-w-xl">
+                  Autentificări și înregistrări reușite în portal, cu nume și telefon. „Programare după logare” înseamnă că
+                  există cel puțin o programare neanulată creată după momentul logării (folosește data înregistrării
+                  programării în baza de date).
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {([7, 14, 30] as const).map((day) => (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => setClientLoginsDays(day)}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors ${
+                      clientLoginsDays === day ? 'bg-black text-white' : 'bg-white border border-gray-200 text-black hover:border-black'
+                    }`}
+                  >
+                    {day} zile
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => fetchClientLoginLog(clientLoginsDays)}
+                  disabled={clientLoginsLoading}
+                  className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white border border-gray-200 text-black hover:border-black disabled:opacity-50"
+                >
+                  {clientLoginsLoading ? 'Se încarcă...' : 'Reîncarcă'}
+                </button>
+              </div>
+            </div>
+
+            <div className="ui-card rounded-[2rem] overflow-hidden border border-[var(--border-soft)]">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-black">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50/80">
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Data / ora</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Tip</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Nume</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Telefon</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Programare după logare</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest hidden lg:table-cell">IP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clientLoginsLoading && clientLoginRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-12 text-center font-bold text-black/40">
+                          Se încarcă...
+                        </td>
+                      </tr>
+                    ) : clientLoginRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-12 text-center font-serif italic text-black/40">
+                          Nu există logări în intervalul selectat (sau migrarea SQL pentru date nominale nu e aplicată încă).
+                        </td>
+                      </tr>
+                    ) : (
+                      clientLoginRows.map((row) => (
+                        <tr key={row.id} className="border-b border-gray-50 last:border-0 hover:bg-[#fff5f8]/50">
+                          <td className="px-4 py-3 whitespace-nowrap font-bold">
+                            {format(parseISO(row.at), 'dd MMM yyyy, HH:mm', { locale: ro })}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-block text-[9px] font-black uppercase px-2 py-1 rounded-lg ${
+                                row.kind === 'Înregistrare' ? 'bg-[#e21a6e]/15 text-[#e21a6e]' : 'bg-gray-100 text-gray-700'
+                              }`}
+                            >
+                              {row.kind}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-bold">{row.fullName}</td>
+                          <td className="px-4 py-3 font-mono text-xs">{row.phone}</td>
+                          <td className="px-4 py-3">
+                            {row.bookedAfterLogin ? (
+                              <span className="text-green-600 font-black text-xs uppercase">Da</span>
+                            ) : (
+                              <span className="text-black/35 font-bold text-xs uppercase">Nu</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-black/50 hidden lg:table-cell font-mono">{row.ip || '—'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

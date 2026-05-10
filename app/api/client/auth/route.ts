@@ -144,7 +144,15 @@ export async function POST(request: Request) {
       }
       const response = NextResponse.json({ ok: true, client: data })
       setSessionCookie(response, buildClientSessionToken(data))
-      logAuthAuditEvent({ area: 'client', action: 'register', outcome: 'success', phone, ip })
+      logAuthAuditEvent({
+        area: 'client',
+        action: 'register',
+        outcome: 'success',
+        phone,
+        ip,
+        clientId: data.id,
+        fullName: data.full_name,
+      })
       void trackAnalyticsEvent({
         eventName: 'client_register_success',
         category: 'auth',
@@ -219,7 +227,15 @@ export async function POST(request: Request) {
 
       const response = NextResponse.json({ ok: true, client })
       setSessionCookie(response, buildClientSessionToken(client))
-      logAuthAuditEvent({ area: 'client', action: 'login', outcome: 'success', phone, ip })
+      logAuthAuditEvent({
+        area: 'client',
+        action: 'login',
+        outcome: 'success',
+        phone,
+        ip,
+        clientId: client.id,
+        fullName: client.full_name,
+      })
       void trackAnalyticsEvent({
         eventName: 'client_login_success',
         category: 'auth',
