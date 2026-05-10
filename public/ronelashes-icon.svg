@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="RoneLashes">
+  <rect width="512" height="512" rx="128" fill="#fff5fa"/>
+  <circle cx="256" cy="256" r="194" fill="#ffffff" stroke="#e21a6e" stroke-width="14"/>
+  <path d="M132 272c36-64 80-96 124-96s88 32 124 96" fill="none" stroke="#1f1721" stroke-width="22" stroke-linecap="round"/>
+  <path d="M160 254c22 42 55 63 96 63s74-21 96-63" fill="none" stroke="#e21a6e" stroke-width="18" stroke-linecap="round"/>
+  <path d="M171 213l-28-32M212 190l-14-40M256 180v-44M300 190l14-40M341 213l28-32" fill="none" stroke="#1f1721" stroke-width="16" stroke-linecap="round"/>
+  <text x="256" y="388" text-anchor="middle" font-family="Georgia, serif" font-size="56" font-style="italic" font-weight="700" fill="#1f1721">R</text>
+</svg>

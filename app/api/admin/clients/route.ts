@@ -20,8 +20,17 @@ type AppointmentRow = {
   client_id: string | null
   start_time: string
   status: string | null
+  notes: string | null
   total_price: number | string | null
   rating: number | null
+}
+
+type PreferenceRow = {
+  client_id: string
+  preferred_style: string | null
+  sensitivity_notes: string | null
+  appointment_notes: string | null
+  updated_at: string | null
 }
 
 function parsePrice(value: number | string | null) {
@@ -36,7 +45,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const supabase = getServiceRoleSupabase()
-    const [{ data: clients, error: clientsError }, { data: appointments, error: appointmentsError }] =
+    const [
+      { data: clients, error: clientsError },
+      { data: appointments, error: appointmentsError },
+      { data: preferences },
+    ] =
       await Promise.all([
         supabase
           .from('clients')
@@ -44,8 +57,11 @@ export async function GET(request: NextRequest) {
           .order('created_at', { ascending: false }),
         supabase
           .from('appointments')
-          .select('id, client_id, start_time, status, total_price, rating')
+          .select('id, client_id, start_time, status, notes, total_price, rating')
           .not('client_id', 'is', null),
+        supabase
+          .from('client_preferences')
+          .select('client_id, preferred_style, sensitivity_notes, appointment_notes, updated_at'),
       ])
 
     if (clientsError || appointmentsError) {
@@ -56,6 +72,9 @@ export async function GET(request: NextRequest) {
     const inactiveStatus = new Set(['canceled', 'rejected'])
     const validAppointments = ((appointments || []) as AppointmentRow[]).filter(
       (app) => app.client_id && !inactiveStatus.has(String(app.status || '')),
+    )
+    const preferencesByClient = new Map(
+      ((preferences || []) as PreferenceRow[]).map((preference) => [preference.client_id, preference]),
     )
 
     const rows = ((clients || []) as ClientRow[]).map((client) => {
@@ -68,6 +87,18 @@ export async function GET(request: NextRequest) {
         .sort((a, b) => a.start_time.localeCompare(b.start_time))
       const rated = clientAppointments.filter((app) => Number(app.rating || 0) > 0)
       const totalSpent = clientAppointments.reduce((acc, app) => acc + parsePrice(app.total_price), 0)
+      const recentAppointments = [...clientAppointments]
+        .sort((a, b) => b.start_time.localeCompare(a.start_time))
+        .slice(0, 6)
+        .map((app) => ({
+          id: app.id,
+          startTime: app.start_time,
+          status: app.status || 'confirmed',
+          notes: app.notes || 'Programare',
+          totalPrice: parsePrice(app.total_price),
+          rating: app.rating,
+        }))
+      const preference = preferencesByClient.get(client.id)
 
       return {
         id: client.id,
@@ -85,6 +116,13 @@ export async function GET(request: NextRequest) {
           rated.length > 0
             ? Number((rated.reduce((acc, app) => acc + Number(app.rating || 0), 0) / rated.length).toFixed(1))
             : null,
+        preferences: {
+          preferredStyle: preference?.preferred_style || '',
+          sensitivityNotes: preference?.sensitivity_notes || '',
+          appointmentNotes: preference?.appointment_notes || '',
+          updatedAt: preference?.updated_at || null,
+        },
+        recentAppointments,
       }
     })
 

@@ -10,6 +10,11 @@ import Image from 'next/image'
 import { DEFAULT_CATEGORY_ORDER, DEFAULT_SUBCATEGORY_ORDER, sortByPreferredOrder } from '@/lib/service-order'
 import 'react-day-picker/dist/style.css'
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
+}
+
 export default function Home() {
   const emailServiceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || ''
   const emailTemplateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || ''
@@ -77,6 +82,9 @@ export default function Home() {
   })
   const [preferencesLoading, setPreferencesLoading] = useState(false)
   const [preferencesSaving, setPreferencesSaving] = useState(false)
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [showInstallHelp, setShowInstallHelp] = useState(false)
+  const [isStandalonePwa, setIsStandalonePwa] = useState(false)
 
   const router = useRouter()
 
@@ -98,6 +106,21 @@ export default function Home() {
       }
     }
     init()
+  }, [])
+
+  useEffect(() => {
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      ('standalone' in window.navigator && Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone))
+    setIsStandalonePwa(standalone)
+
+    const onBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault()
+      setInstallPrompt(event as BeforeInstallPromptEvent)
+    }
+
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
+    return () => window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt)
   }, [])
 
   // --- LOGICA PENTRU RULARE AUTOMATĂ ---
@@ -238,6 +261,16 @@ export default function Home() {
     setView('dashboard')
     fetchClientAppointments(clientData.id)
     fetchGlobalData()
+  }
+
+  const handleInstallApp = async () => {
+    if (installPrompt) {
+      await installPrompt.prompt()
+      await installPrompt.userChoice.catch(() => null)
+      setInstallPrompt(null)
+      return
+    }
+    setShowInstallHelp((prev) => !prev)
   }
 
   const handleLogout = async () => {
@@ -613,7 +646,7 @@ export default function Home() {
           <div className="w-full flex flex-col items-center animate-in fade-in">
             <p className="text-[11px] font-black tracking-[0.4em] uppercase opacity-70 mb-4 text-black">Lash & Make-up Artist</p>
             <Image
-              src="/icon-512x512.png"
+              src="/ronelashes-icon.svg"
               alt="Logo"
               width={128}
               height={128}
@@ -715,6 +748,27 @@ export default function Home() {
               Politica de confidențialitate
             </a>
           </div>
+
+          {!isStandalonePwa && (
+            <div className="w-full max-w-sm mt-5">
+              <button
+                type="button"
+                onClick={handleInstallApp}
+                className="w-full rounded-[1.8rem] bg-white/70 border border-white/70 px-5 py-4 text-left shadow-sm"
+              >
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#e21a6e]">Instalează pe telefon</p>
+                <p className="text-xs font-bold text-black/60 mt-1">
+                  Adaugă RoneLashes pe ecranul principal pentru acces rapid la programări.
+                </p>
+              </button>
+              {showInstallHelp && (
+                <div className="mt-3 rounded-2xl bg-white/80 border border-white/70 p-4 text-left text-[11px] font-bold text-black/60 leading-relaxed">
+                  Pe iPhone: apasă butonul Share din Safari, apoi <strong>Adaugă pe ecranul principal</strong>.
+                  Pe Android: folosește opțiunea <strong>Instalează aplicația</strong> sau <strong>Add to Home screen</strong>.
+                </div>
+              )}
+            </div>
+          )}
 
           {/* SECȚIUNE RECENZII PUBLICĂ */}
           <section className="w-full max-w-md mt-14 animate-in fade-in">

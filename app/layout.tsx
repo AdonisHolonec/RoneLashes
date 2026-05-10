@@ -60,7 +60,7 @@ export const metadata: Metadata = {
 
 // Configurarea culorii temei pentru browser/telefon
 export const viewport: Viewport = {
-  themeColor: "#000000",
+  themeColor: "#e21a6e",
 };
 
 export default function RootLayout({
@@ -75,7 +75,8 @@ export default function RootLayout({
     >
       <head>
         {/* Aceste tag-uri ajută la experiența de aplicație nativă pe iPhone */}
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+        <link rel="icon" href="/ronelashes-icon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/ronelashes-icon.svg" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

@@ -78,6 +78,20 @@ export default function AdminDashboard() {
     lastVisitAt: string | null
     nextVisitAt: string | null
     averageRating: number | null
+    preferences?: {
+      preferredStyle: string
+      sensitivityNotes: string
+      appointmentNotes: string
+      updatedAt: string | null
+    }
+    recentAppointments?: {
+      id: string
+      startTime: string
+      status: string
+      notes: string
+      totalPrice: number
+      rating: number | null
+    }[]
   }
   type AdminClientStats = {
     totalClients: number
@@ -91,6 +105,7 @@ export default function AdminDashboard() {
   const [adminClientsLoading, setAdminClientsLoading] = useState(false)
   const [adminClientSearch, setAdminClientSearch] = useState('')
   const [adminClientFilter, setAdminClientFilter] = useState<'all' | 'inactive'>('all')
+  const [expandedAdminClientId, setExpandedAdminClientId] = useState<string | null>(null)
 
   // State-uri Agenda & Calendar
   const [selectedAgendaDate, setSelectedAgendaDate] = useState<Date>(new Date())
@@ -1659,6 +1674,12 @@ export default function AdminDashboard() {
                   const pinValue = resetPinByClient[client.id] || ''
                   const message = `Bună, ${client.fullName}! Îți scriu de la RoneLashes. ✨`
                   const inactive = isInactiveClient(client)
+                  const expanded = expandedAdminClientId === client.id
+                  const hasPreferences = Boolean(
+                    client.preferences?.preferredStyle ||
+                    client.preferences?.sensitivityNotes ||
+                    client.preferences?.appointmentNotes,
+                  )
                   return (
                     <div key={client.id} className="ui-card p-6 rounded-[2.5rem] border border-[var(--border-soft)] text-black">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-5">
@@ -1716,7 +1737,89 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
+                      {expanded && (
+                        <div className="bg-[#fff8fb] border border-[#e21a6e]/10 rounded-[2rem] p-4 mb-5">
+                          <div className="flex items-center justify-between gap-3 mb-4">
+                            <div>
+                              <p className="text-[9px] font-black uppercase tracking-widest text-[#e21a6e]">Fișă clientă</p>
+                              <p className="text-sm font-black text-black mt-1">Ultimele programări</p>
+                            </div>
+                            <p className="text-[10px] font-bold text-black/45">
+                              {client.recentAppointments?.length || 0} afișate
+                            </p>
+                          </div>
+                          <div className="bg-white/80 rounded-2xl p-4 border border-white mb-4">
+                            <div className="flex items-center justify-between gap-3 mb-3">
+                              <p className="text-[9px] font-black uppercase tracking-widest text-black/35">Preferințe clientă</p>
+                              {client.preferences?.updatedAt && (
+                                <p className="text-[9px] font-bold text-black/35">
+                                  {safeFormatDate(client.preferences.updatedAt, 'dd MMM yyyy')}
+                                </p>
+                              )}
+                            </div>
+                            {hasPreferences ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div className="rounded-2xl bg-[#fff5f8] p-3">
+                                  <p className="text-[9px] font-black uppercase text-[#e21a6e]">Stil</p>
+                                  <p className="text-xs font-bold text-black/70 mt-1">
+                                    {client.preferences?.preferredStyle || 'Nespecificat'}
+                                  </p>
+                                </div>
+                                <div className="rounded-2xl bg-[#fff5f8] p-3">
+                                  <p className="text-[9px] font-black uppercase text-[#e21a6e]">Sensibilități</p>
+                                  <p className="text-xs font-bold text-black/70 mt-1">
+                                    {client.preferences?.sensitivityNotes || 'Nicio notă'}
+                                  </p>
+                                </div>
+                                <div className="rounded-2xl bg-[#fff5f8] p-3">
+                                  <p className="text-[9px] font-black uppercase text-[#e21a6e]">Note programări</p>
+                                  <p className="text-xs font-bold text-black/70 mt-1">
+                                    {client.preferences?.appointmentNotes || 'Nicio notă'}
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-xs font-bold text-black/45">
+                                Clienta nu a completat încă profilul de preferințe.
+                              </p>
+                            )}
+                          </div>
+                          {client.recentAppointments && client.recentAppointments.length > 0 ? (
+                            <div className="space-y-2">
+                              {client.recentAppointments.map((appointment) => (
+                                <div key={appointment.id} className="bg-white/80 rounded-2xl p-3 border border-white">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-xs font-black text-black">
+                                        {safeFormatDate(appointment.startTime, 'dd MMM yyyy, HH:mm')}
+                                      </p>
+                                      <p className="text-[10px] font-bold text-black/50 mt-1">{appointment.notes}</p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <p className="text-xs font-black text-black">{appointment.totalPrice} RON</p>
+                                      <p className="text-[9px] font-black uppercase text-black/35 mt-1">{appointment.status}</p>
+                                    </div>
+                                  </div>
+                                  {appointment.rating ? (
+                                    <p className="text-[10px] font-black text-yellow-500 mt-2">{appointment.rating} ★ recenzie</p>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs font-bold text-black/45">Nu există programări salvate pentru această clientă.</p>
+                          )}
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedAdminClientId(expanded ? null : client.id)}
+                          className="w-full py-3 bg-[#fff5f8] text-[#e21a6e] border border-[#e21a6e]/15 rounded-2xl font-black uppercase text-[10px] tracking-widest text-center"
+                        >
+                          {expanded ? 'Ascunde detalii' : 'Detalii clientă'}
+                        </button>
                         <a
                           href={buildWhatsAppHref(client.phone, message)}
                           target="_blank"
