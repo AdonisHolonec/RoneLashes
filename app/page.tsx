@@ -675,17 +675,15 @@ export default function Home() {
               <button
                 type="button"
                 onClick={handleInstallApp}
-                className="w-full rounded-[2rem] bg-white border-2 border-[#e21a6e]/35 px-5 py-4 text-left shadow-xl shadow-[#e21a6e]/15 active:scale-[0.98] transition-all"
+                className="w-full rounded-2xl bg-white/55 border border-white/70 px-4 py-3 text-left shadow-sm active:scale-[0.99] transition-all hover:bg-white/75"
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-[#e21a6e] text-white flex items-center justify-center font-black text-xl shadow-lg">
-                    +
-                  </div>
+                <div className="flex items-center gap-3">
+                  <span className="w-2 h-2 rounded-full bg-[#e21a6e]/70 shrink-0" />
                   <div className="flex-1">
-                    <p className="text-[11px] font-black uppercase tracking-widest text-[#e21a6e]">
+                    <p className="text-[9px] font-black uppercase tracking-[0.22em] text-[#e21a6e]/80">
                       {isStandalonePwa ? 'Aplicația este instalată' : 'Adaugă aplicația pe telefon'}
                     </p>
-                    <p className="text-xs font-bold text-black/65 mt-1">
+                    <p className="text-[11px] font-bold text-black/45 mt-1">
                       {isStandalonePwa
                         ? 'Ai acces rapid la programări direct din aplicație.'
                         : 'Apasă aici pentru pașii de instalare pe iPhone sau Android.'}
@@ -694,7 +692,7 @@ export default function Home() {
                 </div>
               </button>
               {showInstallHelp && (
-                <div className="mt-3 rounded-2xl bg-white border border-[#e21a6e]/15 p-4 text-left text-[11px] font-bold text-black/65 leading-relaxed shadow-sm">
+                <div className="mt-2 rounded-2xl bg-white/70 border border-white/70 p-4 text-left text-[11px] font-bold text-black/55 leading-relaxed shadow-sm">
                   Pe iPhone: apasă butonul Share din Safari, apoi <strong>Adaugă pe ecranul principal</strong>.
                   Pe Android: folosește opțiunea <strong>Instalează aplicația</strong> sau <strong>Add to Home screen</strong>.
                 </div>
