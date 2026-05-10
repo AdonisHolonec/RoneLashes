@@ -11,17 +11,6 @@ import 'react-day-picker/dist/style.css'
 
 const daysMap = ['Duminică', 'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă']
 
-type ContactPickerContact = {
-  name?: string[]
-  tel?: string[]
-}
-
-type NavigatorWithContacts = Navigator & {
-  contacts?: {
-    select: (properties: string[], options?: { multiple?: boolean }) => Promise<ContactPickerContact[]>
-  }
-}
-
 export default function AdminDashboard() {
   type AnalyticsEvent = {
     event_name: string
@@ -479,35 +468,6 @@ export default function AdminDashboard() {
       time: '',
     }))
     setShowManualBooking(true)
-  }
-
-  const importContactForManualBooking = async () => {
-    const contactsApi = (navigator as NavigatorWithContacts).contacts
-    if (!contactsApi?.select) {
-      alert('Importul din agenda telefonului este disponibil doar pe unele browsere mobile (ex. Chrome pe Android) și doar pe HTTPS.')
-      return
-    }
-
-    try {
-      const contacts = await contactsApi.select(['name', 'tel'], { multiple: false })
-      const contact = contacts?.[0]
-      const contactName = contact?.name?.[0]?.trim() || ''
-      const contactPhone = contact?.tel?.[0]?.replace(/\D/g, '') || ''
-
-      if (!contactName && !contactPhone) {
-        alert('Contactul selectat nu conține nume sau telefon.')
-        return
-      }
-
-      setManualForm((prev) => ({
-        ...prev,
-        name: contactName || prev.name,
-        phone: contactPhone || prev.phone,
-      }))
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return
-      alert('Nu am putut importa contactul selectat.')
-    }
   }
 
   const handleRemind = (app: any) => {
@@ -1188,13 +1148,6 @@ export default function AdminDashboard() {
               <button onClick={() => { setShowManualBooking(false); setIsExistingClient(false); }} className="absolute top-8 right-8 w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center font-black text-black hover:bg-gray-200">✕</button>
               <h3 className="text-2xl font-serif italic font-bold mb-8 text-black text-center">Programare Manuală</h3>
               <div className="space-y-4 mb-8 text-black">
-                <button
-                  type="button"
-                  onClick={importContactForManualBooking}
-                  className="ui-btn w-full py-4 bg-[#fff5f8] text-[#e21a6e] border border-[#e21a6e]/20 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-[#e21a6e] hover:text-white transition-colors"
-                >
-                  Importă din contacte
-                </button>
                 <input placeholder="Telefon Clientă" className="ui-input" value={manualForm.phone} onChange={e => setManualForm({...manualForm, phone: e.target.value})} />
                 <input placeholder="Nume Clientă" className={`ui-input ${isExistingClient ? 'border-green-500' : ''}`} value={manualForm.name} onChange={e => setManualForm({...manualForm, name: e.target.value})} />
                 <select className="ui-input" value={manualForm.serviceId} onChange={e => setManualForm({...manualForm, serviceId: e.target.value, time: ''})}>
