@@ -461,6 +461,15 @@ export default function AdminDashboard() {
     window.open(buildWhatsAppHref(app.client_phone, buildReviewRequestMessage(app)), '_blank', 'noopener,noreferrer')
   }
 
+  const openManualBooking = () => {
+    setManualForm((prev) => ({
+      ...prev,
+      date: selectedAgendaDate,
+      time: '',
+    }))
+    setShowManualBooking(true)
+  }
+
   const handleRemind = (app: any) => {
     const msg = `Bună, ${app.client_name}! Îți reamintesc cu drag de programarea ta pentru ${app.notes} de pe data de ${format(parseISO(app.start_time), 'dd MMMM', { locale: ro })}, la ora ${format(parseISO(app.start_time), 'HH:mm')}. Ne vedem curând! ✨`
     let phone = app.client_phone.trim()
@@ -496,7 +505,7 @@ export default function AdminDashboard() {
       const msg = `Bună, ${manualForm.name}! Te-am programat pe data de ${format(start, 'dd MMMM', {locale: ro})}, la ora ${manualForm.time}. ✨`
       let p = manualForm.phone.trim(); if (p.startsWith('0')) p = p.substring(1)
       window.open(`https://wa.me/40${p}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
-      setShowManualBooking(false); setManualForm({ name: '', phone: '', serviceId: '', date: undefined, time: '', clientId: null }); fetchAdminData()
+      setShowManualBooking(false); setManualForm({ name: '', phone: '', serviceId: '', date: selectedAgendaDate, time: '', clientId: null }); fetchAdminData()
       return
     }
     const payload = await response.json().catch(() => ({}))
@@ -1024,7 +1033,7 @@ export default function AdminDashboard() {
               ))}
               <div className="ml-auto flex gap-2 w-full md:w-auto mt-4 md:mt-0">
                 <button onClick={() => setShowPauseModal(true)} className="ui-btn flex-1 md:flex-none bg-gray-200 text-black px-6 py-3 rounded-2xl font-black uppercase text-[10px] shadow-sm hover:bg-gray-300 transition-all">☕ Pauză</button>
-                <button onClick={() => setShowManualBooking(true)} className="ui-btn ui-btn-primary flex-1 md:flex-none px-6 py-3 rounded-2xl font-black uppercase text-[10px] shadow-lg">+ Programare</button>
+                <button onClick={openManualBooking} className="ui-btn ui-btn-primary flex-1 md:flex-none px-6 py-3 rounded-2xl font-black uppercase text-[10px] shadow-lg">+ Programare</button>
               </div>
             </div>
 
