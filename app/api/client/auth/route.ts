@@ -75,6 +75,7 @@ export async function POST(request: Request) {
     const phone = String(body?.phone ?? '').replace(/\D/g, '')
     const pin = String(body?.pin ?? '').replace(/\D/g, '')
     const fullName = String(body?.fullName ?? '').trim()
+    const personalDataConsent = Boolean(body?.personalDataConsent)
 
     if (action === 'logout') {
       const response = NextResponse.json({ ok: true })
@@ -123,9 +124,30 @@ export async function POST(request: Request) {
         })
         return NextResponse.json({ error: 'Numele trebuie să aibă minim 3 caractere.' }, { status: 400 })
       }
+      if (!personalDataConsent) {
+        logAuthAuditEvent({
+          area: 'client',
+          action: 'register',
+          outcome: 'failure',
+          phone,
+          ip,
+          reason: 'missing-personal-data-consent',
+        })
+        return NextResponse.json(
+          { error: 'Pentru crearea contului este necesar acordul pentru prelucrarea datelor personale.' },
+          { status: 400 },
+        )
+      }
       const { data, error } = await supabase
         .from('clients')
-        .insert({ phone, full_name: fullName, pin: hashClientPin(pin) })
+        .insert({
+          phone,
+          full_name: fullName,
+          pin: hashClientPin(pin),
+          personal_data_consent_at: new Date().toISOString(),
+          personal_data_consent_version: '2026-05-10',
+          personal_data_consent_ip: ip,
+        })
         .select('id, phone, full_name')
         .single()
       if (error || !data) {

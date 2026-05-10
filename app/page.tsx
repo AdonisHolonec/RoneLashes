@@ -40,6 +40,7 @@ export default function Home() {
   const [pin, setPin] = useState('')
   const [fullName, setFullName] = useState('')
   const [isRegistering, setIsRegistering] = useState(false)
+  const [personalDataConsent, setPersonalDataConsent] = useState(false)
 
   // Booking States
   const [services, setServices] = useState<any[]>([])
@@ -212,6 +213,7 @@ export default function Home() {
           phone,
           pin,
           fullName,
+          personalDataConsent,
         }),
       })
       const payload = await response.json()
@@ -665,12 +667,28 @@ export default function Home() {
                 value={pin} 
                 onChange={e => setPin(e.target.value.replace(/\D/g, ''))} 
               />
+
+              {isRegistering && (
+                <label className="flex items-start gap-3 text-left bg-[#fff5f8] border border-[#e21a6e]/15 rounded-2xl p-4 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={personalDataConsent}
+                    onChange={(e) => setPersonalDataConsent(e.target.checked)}
+                    className="mt-1 h-4 w-4 accent-[#e21a6e]"
+                    data-testid="client-personal-data-consent"
+                  />
+                  <span className="text-[11px] font-bold leading-relaxed text-black/70">
+                    Sunt de acord cu prelucrarea datelor personale (nume, telefon, programări și preferințe) pentru
+                    crearea contului, gestionarea programărilor și comunicarea cu salonul RoneLashes.
+                  </span>
+                </label>
+              )}
               
-              <button data-testid="client-auth-submit" disabled={authSubmitting} onClick={handleAuth} className="ui-btn ui-btn-primary w-full py-5 text-xs tracking-widest active:scale-95 disabled:opacity-50">
+              <button data-testid="client-auth-submit" disabled={authSubmitting || (isRegistering && !personalDataConsent)} onClick={handleAuth} className="ui-btn ui-btn-primary w-full py-5 text-xs tracking-widest active:scale-95 disabled:opacity-50">
                 {authSubmitting ? 'Se procesează...' : isRegistering ? 'Creează Cont' : 'Intră în Cont'}
               </button>
               
-              <button data-testid="client-auth-toggle" onClick={() => setIsRegistering(!isRegistering)} className="text-[10px] font-black uppercase opacity-40 tracking-widest mt-4 text-black">
+              <button data-testid="client-auth-toggle" onClick={() => { setIsRegistering(!isRegistering); setPersonalDataConsent(false); }} className="text-[10px] font-black uppercase opacity-40 tracking-widest mt-4 text-black">
                 {isRegistering ? 'Ai deja cont? Loghează-te' : 'Clientă nouă? Înregistrează-te'}
               </button>
             </div>
