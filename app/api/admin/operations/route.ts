@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ADMIN_AUTH_COOKIE, verifyAdminSessionToken } from '@/lib/admin-auth'
+import { hashClientPin } from '@/lib/client-pin'
 import { getServiceRoleSupabase } from '@/lib/service-role-supabase'
 
 function isAdminAuthenticated(request: NextRequest) {
@@ -65,6 +66,42 @@ export async function POST(request: NextRequest) {
         .eq('phone', phone)
         .maybeSingle()
       return NextResponse.json({ client: data || null })
+    }
+
+    if (action === 'reset_client_pin') {
+      const clientId = String(body?.clientId ?? '')
+      const newPin = String(body?.newPin ?? '').replace(/\D/g, '')
+      if (!clientId || !/^\d{4,8}$/.test(newPin)) {
+        return NextResponse.json({ error: 'Date resetare PIN invalide.' }, { status: 400 })
+      }
+
+      const { data: client, error: clientError } = await supabase
+        .from('clients')
+        .select('id, full_name, phone')
+        .eq('id', clientId)
+        .maybeSingle()
+
+      if (clientError || !client?.id) {
+        return NextResponse.json({ error: 'Clienta nu a fost găsită.' }, { status: 404 })
+      }
+
+      const { error } = await supabase
+        .from('clients')
+        .update({ pin: hashClientPin(newPin) })
+        .eq('id', client.id)
+
+      if (error) {
+        return NextResponse.json({ error: 'PIN-ul nu a putut fi resetat.' }, { status: 400 })
+      }
+
+      return NextResponse.json({
+        ok: true,
+        client: {
+          id: client.id,
+          full_name: client.full_name,
+          phone: client.phone,
+        },
+      })
     }
 
     if (action === 'update_status') {

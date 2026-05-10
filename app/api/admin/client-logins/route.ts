@@ -162,6 +162,7 @@ export async function GET(request: NextRequest) {
 
       return {
         id: e.id,
+        clientId,
         at: e.created_at,
         kind: e.action === 'register' ? 'Înregistrare' : 'Autentificare',
         fullName,

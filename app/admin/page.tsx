@@ -45,6 +45,7 @@ export default function AdminDashboard() {
 
   type ClientLoginRow = {
     id: string
+    clientId: string | null
     at: string
     kind: string
     fullName: string
@@ -61,6 +62,8 @@ export default function AdminDashboard() {
   const [clientLoginStats, setClientLoginStats] = useState<ClientLoginStats | null>(null)
   const [clientLoginsLoading, setClientLoginsLoading] = useState(false)
   const [clientLoginsDays, setClientLoginsDays] = useState<7 | 14 | 30>(30)
+  const [resetPinByClient, setResetPinByClient] = useState<Record<string, string>>({})
+  const [resetPinLoadingId, setResetPinLoadingId] = useState<string | null>(null)
 
   // State-uri Agenda & Calendar
   const [selectedAgendaDate, setSelectedAgendaDate] = useState<Date>(new Date())
@@ -396,6 +399,50 @@ export default function AdminDashboard() {
 
   const buildReviewRequestMessage = (app: any) =>
     `Bună, ${app.client_name}! Îți mulțumesc pentru vizita la RoneLashes din ${safeFormatDate(app.start_time, 'dd MMMM')} ✨\n\nM-aș bucura enorm dacă mi-ai lăsa o recenzie direct în contul tău din portal. Ajută alte cliente să aleagă cu încredere și pe mine mă ajută să îmbunătățesc experiența.\n\nIntră aici: ${process.env.NEXT_PUBLIC_SITE_URL || 'https://ronelashes.vercel.app'}`
+
+  const buildPinResetMessage = (fullName: string, newPin: string) =>
+    `Bună, ${fullName || 'dragă clientă'}! Ți-am resetat PIN-ul pentru portalul RoneLashes.\n\nPIN nou: ${newPin}\n\nTe poți loga cu numărul tău de telefon și acest PIN. Recomand să păstrezi mesajul privat.`
+
+  const handleResetClientPin = async (row: ClientLoginRow) => {
+    if (!row.clientId) {
+      alert('Clienta nu este identificată sigur pentru resetarea PIN-ului.')
+      return
+    }
+
+    const newPin = String(resetPinByClient[row.clientId] || '').replace(/\D/g, '')
+    if (!/^\d{4,8}$/.test(newPin)) {
+      alert('PIN-ul nou trebuie să aibă între 4 și 8 cifre.')
+      return
+    }
+
+    if (!window.confirm(`Resetezi PIN-ul pentru ${row.fullName || row.phone}?`)) return
+
+    setResetPinLoadingId(row.clientId)
+    try {
+      const response = await fetch('/api/admin/operations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset_client_pin', clientId: row.clientId, newPin }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        alert(payload?.error || 'PIN-ul nu a putut fi resetat.')
+        return
+      }
+
+      const clientPhone = payload?.client?.phone || row.phone
+      const clientName = payload?.client?.full_name || row.fullName
+      setResetPinByClient((prev) => ({ ...prev, [row.clientId!]: '' }))
+      window.open(
+        buildWhatsAppHref(clientPhone, buildPinResetMessage(clientName, newPin)),
+        '_blank',
+        'noopener,noreferrer',
+      )
+      alert('PIN-ul a fost resetat. S-a deschis WhatsApp cu mesajul pentru clientă.')
+    } finally {
+      setResetPinLoadingId(null)
+    }
+  }
 
   const handleReject = async (app: any) => {
     if (window.confirm(`Refuzi programarea lui ${app.client_name}?`)) {
@@ -1491,19 +1538,20 @@ export default function AdminDashboard() {
                       <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Nume</th>
                       <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Telefon</th>
                       <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Programare după logare</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest">Reset PIN</th>
                       <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest hidden lg:table-cell">IP</th>
                     </tr>
                   </thead>
                   <tbody>
                     {clientLoginsLoading && clientLoginRows.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-12 text-center font-bold text-black/40">
+                        <td colSpan={7} className="px-4 py-12 text-center font-bold text-black/40">
                           Se încarcă...
                         </td>
                       </tr>
                     ) : clientLoginRows.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-12 text-center font-serif italic text-black/40">
+                        <td colSpan={7} className="px-4 py-12 text-center font-serif italic text-black/40">
                           Nu există logări în intervalul selectat (sau migrarea SQL pentru date nominale nu e aplicată încă).
                         </td>
                       </tr>
@@ -1530,6 +1578,32 @@ export default function AdminDashboard() {
                             ) : (
                               <span className="text-black/35 font-bold text-xs uppercase">Nu</span>
                             )}
+                          </td>
+                          <td className="px-4 py-3 min-w-[220px]">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={8}
+                                value={row.clientId ? resetPinByClient[row.clientId] || '' : ''}
+                                disabled={!row.clientId || resetPinLoadingId === row.clientId}
+                                onChange={(e) => {
+                                  if (!row.clientId) return
+                                  const next = e.target.value.replace(/\D/g, '')
+                                  setResetPinByClient((prev) => ({ ...prev, [row.clientId!]: next }))
+                                }}
+                                placeholder={row.clientId ? 'PIN nou' : 'N/A'}
+                                className="w-24 px-3 py-2 rounded-xl border border-gray-200 bg-white font-black text-xs text-center disabled:opacity-40"
+                              />
+                              <button
+                                type="button"
+                                disabled={!row.clientId || resetPinLoadingId === row.clientId}
+                                onClick={() => handleResetClientPin(row)}
+                                className="px-3 py-2 rounded-xl bg-black text-white font-black uppercase text-[9px] tracking-widest disabled:opacity-35"
+                              >
+                                {resetPinLoadingId === row.clientId ? '...' : 'Trimite'}
+                              </button>
+                            </div>
                           </td>
                           <td className="px-4 py-3 text-xs text-black/50 hidden lg:table-cell font-mono">{row.ip || '—'}</td>
                         </tr>
