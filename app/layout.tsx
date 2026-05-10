@@ -75,8 +75,8 @@ export default function RootLayout({
     >
       <head>
         {/* Aceste tag-uri ajută la experiența de aplicație nativă pe iPhone */}
-        <link rel="icon" href="/ronelashes-icon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/ronelashes-icon.svg" />
+        <link rel="icon" href="/icon-192x192.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/icon-192x192.png" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

@@ -646,7 +646,7 @@ export default function Home() {
           <div className="w-full flex flex-col items-center animate-in fade-in">
             <p className="text-[11px] font-black tracking-[0.4em] uppercase opacity-70 mb-4 text-black">Lash & Make-up Artist</p>
             <Image
-              src="/ronelashes-icon.svg"
+              src="/icon-512x512.png"
               alt="Logo"
               width={128}
               height={128}

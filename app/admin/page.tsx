@@ -104,7 +104,7 @@ export default function AdminDashboard() {
   const [adminClientStats, setAdminClientStats] = useState<AdminClientStats | null>(null)
   const [adminClientsLoading, setAdminClientsLoading] = useState(false)
   const [adminClientSearch, setAdminClientSearch] = useState('')
-  const [adminClientFilter, setAdminClientFilter] = useState<'all' | 'inactive'>('all')
+  const [adminClientFilter, setAdminClientFilter] = useState<'all' | 'inactive' | 'noFuture' | 'top'>('all')
   const [expandedAdminClientId, setExpandedAdminClientId] = useState<string | null>(null)
 
   // State-uri Agenda & Calendar
@@ -555,12 +555,16 @@ export default function AdminDashboard() {
   const buildRetentionMessage = (client: AdminClientRow) =>
     `Bună, ${client.fullName}! ✨\n\nNu ne-am mai văzut de ceva timp la RoneLashes și voiam să te întreb dacă dorești să îți rezerv un loc pentru întreținere / o nouă programare.\n\nÎmi poți scrie aici ce zi ți-ar fi potrivită. 💖`
 
-  const openManualBooking = () => {
+  const openManualBooking = (client?: Pick<AdminClientRow, 'id' | 'fullName' | 'phone'>) => {
     setManualForm((prev) => ({
       ...prev,
+      name: client?.fullName || prev.name,
+      phone: client?.phone || prev.phone,
+      clientId: client?.id || prev.clientId,
       date: selectedAgendaDate,
       time: '',
     }))
+    setIsExistingClient(Boolean(client))
     setShowManualBooking(true)
   }
 
@@ -990,7 +994,19 @@ export default function AdminDashboard() {
   const visibleReviews = useMemo(() => reviews, [reviews])
   const visibleAdminClients = useMemo(() => {
     const q = adminClientSearch.trim().toLowerCase()
-    const filtered = adminClientFilter === 'inactive' ? adminClients.filter(isInactiveClient) : adminClients
+    let filtered = [...adminClients]
+    if (adminClientFilter === 'inactive') {
+      filtered = filtered.filter(isInactiveClient)
+    }
+    if (adminClientFilter === 'noFuture') {
+      filtered = filtered.filter((client) => client.totalAppointments > 0 && client.futureAppointments === 0)
+    }
+    if (adminClientFilter === 'top') {
+      filtered = filtered
+        .filter((client) => client.totalAppointments > 0)
+        .sort((a, b) => b.totalSpent - a.totalSpent || b.totalAppointments - a.totalAppointments)
+        .slice(0, 10)
+    }
     if (!q) return filtered
     return filtered.filter((client) => {
       const haystack = `${client.fullName} ${client.phone}`.toLowerCase()
@@ -1140,7 +1156,7 @@ export default function AdminDashboard() {
               ))}
               <div className="ml-auto flex gap-2 w-full md:w-auto mt-4 md:mt-0">
                 <button onClick={() => setShowPauseModal(true)} className="ui-btn flex-1 md:flex-none bg-gray-200 text-black px-6 py-3 rounded-2xl font-black uppercase text-[10px] shadow-sm hover:bg-gray-300 transition-all">☕ Pauză</button>
-                <button onClick={openManualBooking} className="ui-btn ui-btn-primary flex-1 md:flex-none px-6 py-3 rounded-2xl font-black uppercase text-[10px] shadow-lg">+ Programare</button>
+                <button onClick={() => openManualBooking()} className="ui-btn ui-btn-primary flex-1 md:flex-none px-6 py-3 rounded-2xl font-black uppercase text-[10px] shadow-lg">+ Programare</button>
               </div>
             </div>
 
@@ -1638,11 +1654,11 @@ export default function AdminDashboard() {
                 placeholder="Caută după nume sau telefon..."
                 className="ui-input text-black"
               />
-              <div className="flex gap-2 mt-3">
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-2 mt-3">
                 <button
                   type="button"
                   onClick={() => setAdminClientFilter('all')}
-                  className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${
+                  className={`py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${
                     adminClientFilter === 'all' ? 'bg-black text-white' : 'bg-gray-50 text-black/50'
                   }`}
                 >
@@ -1651,13 +1667,34 @@ export default function AdminDashboard() {
                 <button
                   type="button"
                   onClick={() => setAdminClientFilter('inactive')}
-                  className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${
+                  className={`py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${
                     adminClientFilter === 'inactive' ? 'bg-orange-600 text-white' : 'bg-orange-50 text-orange-700'
                   }`}
                 >
                   Inactive 45 zile
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminClientFilter('noFuture')}
+                  className={`py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${
+                    adminClientFilter === 'noFuture' ? 'bg-[#e21a6e] text-white' : 'bg-[#fff5f8] text-[#e21a6e]'
+                  }`}
+                >
+                  Fără programare
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminClientFilter('top')}
+                  className={`py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${
+                    adminClientFilter === 'top' ? 'bg-yellow-500 text-white' : 'bg-yellow-50 text-yellow-700'
+                  }`}
+                >
+                  Top cliente
+                </button>
               </div>
+              <p className="mt-3 text-[10px] font-bold uppercase tracking-widest text-black/35">
+                {visibleAdminClients.length} cliente afișate
+              </p>
             </div>
 
             {adminClientsLoading && adminClients.length === 0 ? (
@@ -1819,6 +1856,13 @@ export default function AdminDashboard() {
                           className="w-full py-3 bg-[#fff5f8] text-[#e21a6e] border border-[#e21a6e]/15 rounded-2xl font-black uppercase text-[10px] tracking-widest text-center"
                         >
                           {expanded ? 'Ascunde detalii' : 'Detalii clientă'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openManualBooking(client)}
+                          className="w-full py-3 bg-black text-white rounded-2xl font-black uppercase text-[10px] tracking-widest text-center"
+                        >
+                          Programare
                         </button>
                         <a
                           href={buildWhatsAppHref(client.phone, message)}
