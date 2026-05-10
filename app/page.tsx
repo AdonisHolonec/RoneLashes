@@ -661,7 +661,7 @@ export default function Home() {
                 maxLength={4} 
                 placeholder="PIN 4 Cifre" 
                 data-testid="client-auth-pin"
-                className="ui-input text-center text-2xl tracking-[1em] text-black" 
+                className="ui-input text-center text-lg font-bold tracking-widest text-black" 
                 value={pin} 
                 onChange={e => setPin(e.target.value.replace(/\D/g, ''))} 
               />
