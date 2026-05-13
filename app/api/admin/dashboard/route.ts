@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
       closuresRes,
       portfolioPage,
       reviewsPage,
+      reviewTokensRes,
     ] = await Promise.all([
       supabase
         .from('appointments')
@@ -93,7 +94,16 @@ export async function GET(request: NextRequest) {
       supabase.from('salon_closures').select('*').gte('end_date', todayString).order('start_date', { ascending: true }),
       loadPortfolioPage(supabase, 0),
       loadReviewsPage(supabase, 0),
+      supabase.from('review_tokens').select('appointment_id'),
     ])
+
+    const appointmentIdsWithReviewLink = [
+      ...new Set(
+        (reviewTokensRes.data || [])
+          .map((row: { appointment_id?: string | null }) => row.appointment_id)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    ]
 
     return NextResponse.json({
       appointments: appointmentsRes.data || [],
@@ -104,6 +114,7 @@ export async function GET(request: NextRequest) {
       closures: closuresRes.data || [],
       portfolio: portfolioPage,
       reviews: reviewsPage,
+      appointmentIdsWithReviewLink,
     })
   } catch {
     return NextResponse.json({ error: 'Dashboard-ul admin nu a putut fi încărcat.' }, { status: 500 })

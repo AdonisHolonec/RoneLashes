@@ -25,6 +25,7 @@ export default function AdminDashboard() {
   
   // Date Bază
   const [appointments, setAppointments] = useState<any[]>([])
+  const [appointmentIdsWithReviewLink, setAppointmentIdsWithReviewLink] = useState<string[]>([])
   const [services, setServices] = useState<any[]>([])
   const [photos, setPhotos] = useState<any[]>([])
   const [hasMorePortfolio, setHasMorePortfolio] = useState(false)
@@ -327,6 +328,13 @@ export default function AdminDashboard() {
       const payload = await response.json()
 
       if (Array.isArray(payload?.appointments)) setAppointments(payload.appointments)
+      if (Array.isArray(payload?.appointmentIdsWithReviewLink)) {
+        setAppointmentIdsWithReviewLink(
+          payload.appointmentIdsWithReviewLink.filter((id: unknown) => typeof id === 'string'),
+        )
+      } else {
+        setAppointmentIdsWithReviewLink([])
+      }
       if (Array.isArray(payload?.services)) setServices(payload.services)
       if (Array.isArray(payload?.portfolioRatings)) setPortfolioRatings(payload.portfolioRatings)
       if (Array.isArray(payload?.schedule)) setSchedule(payload.schedule)
@@ -542,6 +550,7 @@ export default function AdminDashboard() {
       return
     }
     const reviewUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://ronelashes.vercel.app'}/review/${payload.token}`
+    setAppointmentIdsWithReviewLink((prev) => (prev.includes(app.id) ? prev : [...prev, app.id]))
     window.open(buildWhatsAppHref(app.client_phone, buildReviewRequestMessage(app, reviewUrl)), '_blank', 'noopener,noreferrer')
   }
 
@@ -1013,10 +1022,15 @@ export default function AdminDashboard() {
       return haystack.includes(q)
     })
   }, [adminClients, adminClientFilter, adminClientSearch, isInactiveClient])
+  const appointmentIdsWithReviewLinkSet = useMemo(
+    () => new Set(appointmentIdsWithReviewLink),
+    [appointmentIdsWithReviewLink],
+  )
   const reviewRequests = useMemo(
     () =>
       appointments
         .filter((app) => {
+          if (appointmentIdsWithReviewLinkSet.has(app.id)) return false
           if (app.client_phone === '-' || !app.client_phone) return false
           if (app.status === 'rejected' || app.status === 'canceled') return false
           if (Number(app.rating || 0) > 0) return false
@@ -1024,7 +1038,7 @@ export default function AdminDashboard() {
         })
         .sort((a, b) => b.start_time.localeCompare(a.start_time))
         .slice(0, 12),
-    [appointments]
+    [appointments, appointmentIdsWithReviewLinkSet],
   )
   const reviewsSummary = useMemo(() => {
     const rated = appointments.filter((app) => Number(app.rating || 0) > 0)
@@ -2225,8 +2239,8 @@ export default function AdminDashboard() {
               <div>
                 <h2 className="text-4xl font-serif italic font-bold text-black">Recenzii Cliente ⭐</h2>
                 <p className="text-sm font-bold text-black/50 mt-2 max-w-2xl">
-                  Aici vezi recenziile publice și programările finalizate/past fără recenzie. Butonul „Solicită recenzie”
-                  deschide WhatsApp cu mesaj pregătit către clientă.
+                  Lista „Cliente fără recenzie” arată doar vizitele trecute la care încă nu s-a generat link de recenzie
+                  (după „Solicită recenzie” dispar din listă). Butonul deschide WhatsApp cu mesaj pregătit.
                 </p>
               </div>
               <button
