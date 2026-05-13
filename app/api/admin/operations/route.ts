@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto'
 import { ADMIN_AUTH_COOKIE, verifyAdminSessionToken } from '@/lib/admin-auth'
 import { hashClientPin } from '@/lib/client-pin'
 import { getServiceRoleSupabase } from '@/lib/service-role-supabase'
-import { portfolioContentType, validatePortfolioUpload } from '@/lib/portfolio-media'
+import { getPortfolioStorageExtension, portfolioContentType, validatePortfolioUpload } from '@/lib/portfolio-media'
 
 function isAdminAuthenticated(request: NextRequest) {
   const token = request.cookies.get(ADMIN_AUTH_COOKIE)?.value || ''
@@ -20,7 +20,18 @@ export async function POST(request: NextRequest) {
     const supabase = getServiceRoleSupabase()
 
     if (contentType.includes('multipart/form-data')) {
-      const formData = await request.formData()
+      let formData: FormData
+      try {
+        formData = await request.formData()
+      } catch {
+        return NextResponse.json(
+          {
+            error:
+              'Nu am putut citi fișierul (posibil prea mare pentru server sau conexiune întreruptă). Încearcă un clip mai scurt / mai mic.',
+          },
+          { status: 413 },
+        )
+      }
       const action = String(formData.get('action') || '')
       if (action !== 'upload_portfolio') {
         return NextResponse.json({ error: 'Invalid action.' }, { status: 400 })
@@ -36,7 +47,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: validationError }, { status: 400 })
       }
 
-      const ext = file.name.split('.').pop() || 'jpg'
+      const ext = getPortfolioStorageExtension(file)
       const fileName = `${crypto.randomUUID()}.${ext}`
       const fileBuffer = await file.arrayBuffer()
 
@@ -47,7 +58,11 @@ export async function POST(request: NextRequest) {
           upsert: false,
         })
       if (uploadError) {
-        return NextResponse.json({ error: 'Încărcarea fișierului a eșuat.' }, { status: 400 })
+        const detail = uploadError.message ? ` (${uploadError.message})` : ''
+        return NextResponse.json(
+          { error: `Încărcarea în storage a eșuat.${detail}` },
+          { status: 400 },
+        )
       }
 
       const {
@@ -56,7 +71,11 @@ export async function POST(request: NextRequest) {
 
       const { error: insertError } = await supabase.from('portfolio').insert([{ url: publicUrl }])
       if (insertError) {
-        return NextResponse.json({ error: 'Fișierul nu a putut fi salvat în portofoliu.' }, { status: 400 })
+        const detail = insertError.message ? ` (${insertError.message})` : ''
+        return NextResponse.json(
+          { error: `Fișierul nu a putut fi salvat în portofoliu.${detail}` },
+          { status: 400 },
+        )
       }
       return NextResponse.json({ ok: true, publicUrl })
     }
@@ -239,3 +258,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
   }
 }
+
+/** Upload-uri mari (ex. video) pe Vercel / hosting. */
+export const maxDuration = 300
