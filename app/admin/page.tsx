@@ -6,6 +6,7 @@ import { ro } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
 import { DayPicker } from 'react-day-picker'
 import Image from 'next/image'
+import { PortfolioMediaFill } from '@/components/PortfolioMediaFill'
 import { DEFAULT_CATEGORY_ORDER, DEFAULT_SUBCATEGORY_ORDER, parseCsvOrder, sortByPreferredOrder } from '@/lib/service-order'
 import 'react-day-picker/dist/style.css'
 
@@ -676,7 +677,7 @@ export default function AdminDashboard() {
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
-        alert(payload?.error || 'Imaginea nu a putut fi încărcată.')
+        alert(payload?.error || 'Fișierul nu a putut fi încărcat.')
         return
       }
       fetchAdminData()
@@ -2197,8 +2198,14 @@ export default function AdminDashboard() {
             <div className="flex justify-between items-center mb-16">
               <h2 className="text-4xl font-serif italic font-bold">Portofoliu & Rating</h2>
               <label className="bg-black text-white px-10 py-5 rounded-[2rem] text-[11px] font-black uppercase cursor-pointer shadow-xl hover:bg-[#e21a6e] transition-all">
-                {uploading ? 'Se încarcă...' : '+ Încarcă Lucrare'}
-                <input type="file" hidden accept="image/*" onChange={handleUpload} disabled={uploading} />
+                {uploading ? 'Se încarcă...' : '+ Încarcă foto sau video'}
+                <input
+                  type="file"
+                  hidden
+                  accept="image/*,video/mp4,video/webm,video/quicktime,.mov,.m4v"
+                  onChange={handleUpload}
+                  disabled={uploading}
+                />
               </label>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
@@ -2210,7 +2217,12 @@ export default function AdminDashboard() {
                     : '0.0'
                 return (
                   <div key={p.id} className="group relative aspect-square rounded-[3rem] overflow-hidden border-4 border-white shadow-md hover:shadow-2xl transition-all">
-                    <Image src={p.url} alt="Lucrare portofoliu" fill sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw" className="object-cover transition-transform group-hover:scale-125 duration-700" />
+                    <PortfolioMediaFill
+                      url={p.url}
+                      alt="Lucrare portofoliu"
+                      sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
+                      className="object-cover transition-transform group-hover:scale-125 duration-700"
+                    />
                     <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-6 text-center text-white">
                       <p className="font-black text-sm mb-4">⭐ {avg}</p>
                       <button onClick={() => deleteItem('portfolio', p.id)} className="bg-red-50 text-white px-6 py-3 rounded-xl text-[9px] font-black uppercase shadow-xl hover:bg-red-600 transition-colors">Șterge</button>

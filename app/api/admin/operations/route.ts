@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto'
 import { ADMIN_AUTH_COOKIE, verifyAdminSessionToken } from '@/lib/admin-auth'
 import { hashClientPin } from '@/lib/client-pin'
 import { getServiceRoleSupabase } from '@/lib/service-role-supabase'
+import { portfolioContentType, validatePortfolioUpload } from '@/lib/portfolio-media'
 
 function isAdminAuthenticated(request: NextRequest) {
   const token = request.cookies.get(ADMIN_AUTH_COOKIE)?.value || ''
@@ -30,6 +31,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Fișier invalid.' }, { status: 400 })
       }
 
+      const validationError = validatePortfolioUpload(file)
+      if (validationError) {
+        return NextResponse.json({ error: validationError }, { status: 400 })
+      }
+
       const ext = file.name.split('.').pop() || 'jpg'
       const fileName = `${crypto.randomUUID()}.${ext}`
       const fileBuffer = await file.arrayBuffer()
@@ -37,11 +43,11 @@ export async function POST(request: NextRequest) {
       const { error: uploadError } = await supabase.storage
         .from('portfolio')
         .upload(fileName, fileBuffer, {
-          contentType: file.type || 'image/jpeg',
+          contentType: portfolioContentType(file),
           upsert: false,
         })
       if (uploadError) {
-        return NextResponse.json({ error: 'Upload-ul imaginii a eșuat.' }, { status: 400 })
+        return NextResponse.json({ error: 'Încărcarea fișierului a eșuat.' }, { status: 400 })
       }
 
       const {
@@ -50,7 +56,7 @@ export async function POST(request: NextRequest) {
 
       const { error: insertError } = await supabase.from('portfolio').insert([{ url: publicUrl }])
       if (insertError) {
-        return NextResponse.json({ error: 'Imaginea nu a putut fi salvată în portofoliu.' }, { status: 400 })
+        return NextResponse.json({ error: 'Fișierul nu a putut fi salvat în portofoliu.' }, { status: 400 })
       }
       return NextResponse.json({ ok: true, publicUrl })
     }

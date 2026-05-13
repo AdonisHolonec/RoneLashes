@@ -7,6 +7,7 @@ import { format, addDays, addMinutes, isBefore, isAfter, parseISO, isSameDay, st
 import emailjs from '@emailjs/browser'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { PortfolioMediaFill } from '@/components/PortfolioMediaFill'
 import { DEFAULT_CATEGORY_ORDER, DEFAULT_SUBCATEGORY_ORDER, sortByPreferredOrder } from '@/lib/service-order'
 import 'react-day-picker/dist/style.css'
 
@@ -1081,10 +1082,9 @@ export default function Home() {
 
                     return (
                       <div key={p.id} className="min-w-[160px] max-w-[160px] relative aspect-square rounded-3xl overflow-hidden shadow-sm border border-[var(--border-soft)] group snap-center shrink-0">
-                        <Image
-                          src={p.url}
+                        <PortfolioMediaFill
+                          url={p.url}
                           alt="Portofoliu"
-                          fill
                           sizes="160px"
                           className="object-cover"
                         />
