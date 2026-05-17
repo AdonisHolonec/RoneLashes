@@ -2580,8 +2580,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {reviewRequests.length > 0 && (
-              <div className="ui-card-soft p-6 rounded-[2.5rem] border border-[#e21a6e]/15 mb-10">
+            <div className="ui-card-soft p-6 rounded-[2.5rem] border border-[#e21a6e]/15 mb-10">
                 <div className="flex items-center justify-between gap-4 mb-5">
                   <div>
                     <p className="ui-meta mb-1 text-black">Mecanică solicitare</p>
@@ -2591,6 +2590,7 @@ export default function AdminDashboard() {
                     {reviewRequests.length}
                   </span>
                 </div>
+              {reviewRequests.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {reviewRequests.map((app) => (
                     <div key={app.id} className="bg-white/80 rounded-3xl p-5 border border-white shadow-sm">
@@ -2616,8 +2616,16 @@ export default function AdminDashboard() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="py-10 px-6 text-center rounded-3xl border-2 border-dashed border-[#e21a6e]/20 bg-white/50">
+                  <p className="font-serif italic text-black/60 mb-3">Nicio clientă de solicitat acum.</p>
+                  <p className="text-[11px] font-bold text-black/45 max-w-lg mx-auto leading-relaxed">
+                    Apare aici doar dacă vizita e în trecut, are telefon valid, nu e refuzată/anulată, nu are stele încă
+                    și nu ai trimis deja linkul (butonul ✓ din Agenda face același lucru). Verifică cardul De solicitat de mai sus.
+                  </p>
+                </div>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 text-black">
               {visibleReviews.length > 0 ? (

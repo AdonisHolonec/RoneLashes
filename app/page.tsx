@@ -7,6 +7,7 @@ import { format, addDays, addMinutes, isBefore, isAfter, parseISO, isSameDay, st
 import emailjs from '@emailjs/browser'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { AuthGlassSlider } from '@/components/AuthGlassSlider'
 import { Carousel3D } from '@/components/Carousel3D'
 import { PortfolioMediaFill } from '@/components/PortfolioMediaFill'
 import { DEFAULT_CATEGORY_ORDER, DEFAULT_SUBCATEGORY_ORDER, sortByPreferredOrder } from '@/lib/service-order'
@@ -668,83 +669,31 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="ui-card p-8 rounded-[2.25rem] w-full max-w-sm animate-in zoom-in">
-            <h2 className="text-2xl font-serif italic font-bold mb-2 text-black">Portal Cliente</h2>
-            <p className="text-[10px] font-black uppercase opacity-40 mb-6 tracking-widest text-black">
-              {isRegistering ? 'Creează un cont nou' : 'Loghează-te în cont'}
-            </p>
-            
-            <div className="space-y-4">
-              {isRegistering && (
-                <input 
-                  placeholder="Numele tău complet" 
-                  data-testid="client-auth-name"
-                  className="ui-input text-center text-black" 
-                  value={fullName} 
-                  onChange={e => setFullName(e.target.value)} 
-                />
-              )}
-              <input 
-                type="tel" 
-                placeholder="Număr Telefon" 
-                data-testid="client-auth-phone"
-                className="ui-input text-center text-black" 
-                value={phone} 
-                onChange={e => { setPhone(e.target.value.replace(/\D/g, '')); setLoginRequiresPersonalDataConsent(false); }} 
-              />
-              <input 
-                type="password" 
-                maxLength={4} 
-                placeholder="PIN 4 Cifre" 
-                data-testid="client-auth-pin"
-                className="ui-input text-center text-lg font-bold tracking-widest text-black" 
-                value={pin} 
-                onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setLoginRequiresPersonalDataConsent(false); }} 
-              />
-
-              {(isRegistering || loginRequiresPersonalDataConsent) && (
-                <label className="flex items-start gap-3 text-left bg-[#fff5f8] border border-[#e21a6e]/15 rounded-2xl p-4 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={personalDataConsent}
-                    onChange={(e) => setPersonalDataConsent(e.target.checked)}
-                    className="mt-1 h-4 w-4 accent-[#e21a6e]"
-                    data-testid="client-personal-data-consent"
-                  />
-                  <span className="text-[11px] font-bold leading-relaxed text-black/70">
-                    Sunt de acord cu prelucrarea datelor personale (nume, telefon, programări și preferințe) pentru
-                    {isRegistering ? ' crearea contului,' : ' continuarea utilizării contului,'} gestionarea programărilor și comunicarea cu salonul RoneLashes.{' '}
-                    <a
-                      href="/privacy"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-black text-[#e21a6e] underline underline-offset-2"
-                    >
-                      Citește politica de confidențialitate
-                    </a>
-                    .
-                  </span>
-                </label>
-              )}
-              
-              <button data-testid="client-auth-submit" disabled={authSubmitting || ((isRegistering || loginRequiresPersonalDataConsent) && !personalDataConsent)} onClick={handleAuth} className="ui-btn ui-btn-primary w-full py-5 text-xs tracking-widest active:scale-95 disabled:opacity-50">
-                {authSubmitting ? 'Se procesează...' : isRegistering ? 'Creează Cont' : 'Intră în Cont'}
-              </button>
-              
-              <button data-testid="client-auth-toggle" onClick={() => { setIsRegistering(!isRegistering); setPersonalDataConsent(false); setLoginRequiresPersonalDataConsent(false); }} className="text-[10px] font-black uppercase opacity-40 tracking-widest mt-4 text-black">
-                {isRegistering ? 'Ai deja cont? Loghează-te' : 'Clientă nouă? Înregistrează-te'}
-              </button>
-            </div>
-            {!isRegistering && (
-              <a href={`https://wa.me/40743584475?text=Buna,%20Ronela!%20Am%20uitat%20PIN-ul%20pentru%20contul%20RoneLashes.`} target="_blank" rel="noopener noreferrer" className="mt-8 inline-block text-[10px] font-black uppercase opacity-40 border-b border-black/20 pb-1 text-black">
-                Am uitat codul PIN
-              </a>
-            )}
-            <a href="/privacy" className="mt-5 block text-[9px] font-black uppercase opacity-35 hover:opacity-80 text-black tracking-widest">
-              Politica de confidențialitate
-            </a>
-          </div>
-
+          <AuthGlassSlider
+            isRegistering={isRegistering}
+            onModeChange={(registering) => {
+              setIsRegistering(registering)
+              setPersonalDataConsent(false)
+              setLoginRequiresPersonalDataConsent(false)
+            }}
+            phone={phone}
+            setPhone={(value) => {
+              setPhone(value)
+              setLoginRequiresPersonalDataConsent(false)
+            }}
+            pin={pin}
+            setPin={(value) => {
+              setPin(value)
+              setLoginRequiresPersonalDataConsent(false)
+            }}
+            fullName={fullName}
+            setFullName={setFullName}
+            personalDataConsent={personalDataConsent}
+            setPersonalDataConsent={setPersonalDataConsent}
+            loginRequiresPersonalDataConsent={loginRequiresPersonalDataConsent}
+            authSubmitting={authSubmitting}
+            onSubmit={handleAuth}
+          />
           {/* SECȚIUNE RECENZII PUBLICĂ */}
           <section className="w-full max-w-md mt-14 animate-in fade-in">
             <div className="flex items-end justify-between gap-4 mb-6 px-1">

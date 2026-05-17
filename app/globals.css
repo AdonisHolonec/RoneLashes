@@ -173,3 +173,214 @@ body {
   right: 0;
   transform: translateY(-50%);
 }
+
+/* Auth glass slider — login / register */
+.auth-glass {
+  position: relative;
+  padding: 1.75rem 1.5rem 1.5rem;
+  border-radius: 2.25rem;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(255, 245, 250, 0.52) 48%,
+    rgba(255, 230, 242, 0.42) 100%
+  );
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 28px 64px rgba(226, 26, 110, 0.14),
+    0 8px 24px rgba(31, 23, 33, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(226, 26, 110, 0.06);
+}
+
+.auth-glass-shine {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    ellipse 80% 45% at 50% -8%,
+    rgba(255, 255, 255, 0.65),
+    transparent 58%
+  );
+}
+
+.auth-glass-segment-track {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  position: relative;
+  padding: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: inset 0 1px 3px rgba(226, 26, 110, 0.06);
+}
+
+.auth-glass-segment-pill {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 5px;
+  width: calc(50% - 5px);
+  border-radius: 999px;
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(255, 248, 252, 0.88) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 6px 22px rgba(226, 26, 110, 0.16),
+    0 2px 8px rgba(31, 23, 33, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  transition: transform 0.48s cubic-bezier(0.34, 1.25, 0.64, 1);
+  will-change: transform;
+}
+
+.auth-glass-segment-pill.is-dragging {
+  transition: none;
+}
+
+.auth-glass-segment-btn {
+  position: relative;
+  z-index: 1;
+  padding: 0.72rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(31, 23, 33, 0.42);
+  transition: color 0.32s ease, text-shadow 0.32s ease;
+}
+
+.auth-glass-segment-btn.is-active {
+  color: #1f1721;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+}
+
+.auth-glass-swipe-hint {
+  display: none;
+  margin-top: 0.65rem;
+  text-align: center;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(31, 23, 33, 0.28);
+}
+
+@media (max-width: 768px) {
+  .auth-glass-swipe-hint {
+    display: block;
+  }
+}
+
+.auth-glass-viewport {
+  overflow: hidden;
+  margin-top: 0.35rem;
+  touch-action: pan-y;
+}
+
+.auth-glass-viewport.is-dragging {
+  cursor: grabbing;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.auth-glass-track {
+  display: flex;
+  width: 200%;
+  transition: transform 0.52s cubic-bezier(0.34, 1.22, 0.64, 1);
+  will-change: transform;
+}
+
+.auth-glass-track.is-dragging {
+  transition: none;
+}
+
+.auth-glass-panel {
+  width: 50%;
+  flex-shrink: 0;
+  padding-inline: 2px;
+  transition: opacity 0.35s ease;
+}
+
+.auth-glass-track.is-dragging .auth-glass-panel {
+  transition: none;
+}
+
+.auth-glass-viewport.is-dragging .ui-input,
+.auth-glass-viewport.is-dragging .ui-btn,
+.auth-glass-viewport.is-dragging a,
+.auth-glass-viewport.is-dragging label {
+  pointer-events: none;
+}
+
+.auth-glass-input {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 1px 2px rgba(31, 23, 33, 0.04);
+}
+
+.auth-glass-input:focus {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.auth-glass-consent {
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 1rem;
+  padding: 1rem;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.auth-pin-field {
+  position: relative;
+}
+
+.auth-pin-input {
+  padding-right: 3.1rem;
+}
+
+.auth-pin-toggle {
+  position: absolute;
+  right: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.75rem;
+  color: rgba(31, 23, 33, 0.38);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.auth-pin-toggle:hover {
+  color: var(--accent-1);
+  background: rgba(255, 255, 255, 0.92);
+  border-color: var(--accent-1-soft);
+}
+
+.auth-pin-toggle:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent-1) 24%, transparent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-glass-segment-pill,
+  .auth-glass-track {
+    transition-duration: 0.01ms;
+  }
+
+  .auth-glass-swipe-hint {
+    display: none;
+  }
+}
