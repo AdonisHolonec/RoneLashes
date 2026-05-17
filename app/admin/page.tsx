@@ -68,6 +68,7 @@ export default function AdminDashboard() {
   const [clientLoginsDays, setClientLoginsDays] = useState<7 | 14 | 30>(30)
   const [resetPinByClient, setResetPinByClient] = useState<Record<string, string>>({})
   const [resetPinLoadingId, setResetPinLoadingId] = useState<string | null>(null)
+  const [unlockLoginLoadingId, setUnlockLoginLoadingId] = useState<string | null>(null)
 
   type AdminClientRow = {
     id: string
@@ -627,9 +628,37 @@ export default function AdminDashboard() {
         '_blank',
         'noopener,noreferrer',
       )
-      alert('PIN-ul a fost resetat. S-a deschis WhatsApp cu mesajul pentru clientă.')
+      alert(
+        'PIN-ul a fost resetat și blocarea temporară de login a fost ștearsă. S-a deschis WhatsApp cu mesajul pentru clientă.',
+      )
     } finally {
       setResetPinLoadingId(null)
+    }
+  }
+
+  const handleUnlockClientLogin = async (row: { clientId: string | null; fullName: string; phone: string }) => {
+    if (!row.clientId) {
+      alert('Clienta nu este identificată sigur pentru deblocare.')
+      return
+    }
+
+    if (!window.confirm(`Deblochezi login-ul pentru ${row.fullName || row.phone}?`)) return
+
+    setUnlockLoginLoadingId(row.clientId)
+    try {
+      const response = await fetch('/api/admin/operations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unlock_client_login', clientId: row.clientId }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        alert(payload?.error || 'Login-ul nu a putut fi deblocat.')
+        return
+      }
+      alert('Contul poate încerca din nou autentificarea (blocarea temporară a fost ștearsă).')
+    } finally {
+      setUnlockLoginLoadingId(null)
     }
   }
 
@@ -2215,6 +2244,21 @@ export default function AdminDashboard() {
                           >
                             {resetPinLoadingId === client.id ? '...' : 'PIN'}
                           </button>
+                          <button
+                            type="button"
+                            title="Șterge blocarea temporară după PIN greșit"
+                            disabled={unlockLoginLoadingId === client.id}
+                            onClick={() =>
+                              handleUnlockClientLogin({
+                                clientId: client.id,
+                                fullName: client.fullName,
+                                phone: client.phone,
+                              })
+                            }
+                            className="px-3 py-3 rounded-2xl bg-orange-50 text-orange-700 border border-orange-200 font-black uppercase text-[9px] tracking-widest disabled:opacity-35"
+                          >
+                            {unlockLoginLoadingId === client.id ? '...' : 'Debloc'}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -2364,6 +2408,15 @@ export default function AdminDashboard() {
                                 className="px-2 sm:px-3 py-2 rounded-xl bg-black text-white font-black uppercase text-[8px] sm:text-[9px] tracking-widest disabled:opacity-35"
                               >
                                 {resetPinLoadingId === row.clientId ? '...' : 'Trimite'}
+                              </button>
+                              <button
+                                type="button"
+                                title="Deblochează login după încercări eșuate"
+                                disabled={!row.clientId || unlockLoginLoadingId === row.clientId}
+                                onClick={() => handleUnlockClientLogin(row)}
+                                className="px-2 sm:px-3 py-2 rounded-xl bg-orange-50 text-orange-700 border border-orange-200 font-black uppercase text-[8px] sm:text-[9px] tracking-widest disabled:opacity-35"
+                              >
+                                {unlockLoginLoadingId === row.clientId ? '...' : 'Debloc'}
                               </button>
                             </div>
                           </td>

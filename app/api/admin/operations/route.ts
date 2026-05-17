@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { ADMIN_AUTH_COOKIE, verifyAdminSessionToken } from '@/lib/admin-auth'
+import { unlockClientLoginByPhone } from '@/lib/client-login-guard'
 import { hashClientPin } from '@/lib/client-pin'
+import { resetRateLimitsForPhone } from '@/lib/sensitive-rate-limit'
 import { buildBookingSummary } from '@/lib/booking'
 import { getServiceRoleSupabase } from '@/lib/service-role-supabase'
 import { getPortfolioStorageExtension, portfolioContentType, validatePortfolioUpload } from '@/lib/portfolio-media'
@@ -9,6 +11,11 @@ import { getPortfolioStorageExtension, portfolioContentType, validatePortfolioUp
 function isAdminAuthenticated(request: NextRequest) {
   const token = request.cookies.get(ADMIN_AUTH_COOKIE)?.value || ''
   return verifyAdminSessionToken(token)
+}
+
+function clearClientAuthLockouts(phone: string) {
+  unlockClientLoginByPhone(phone)
+  resetRateLimitsForPhone(phone)
 }
 
 export async function POST(request: NextRequest) {
@@ -120,6 +127,37 @@ export async function POST(request: NextRequest) {
       if (error) {
         return NextResponse.json({ error: 'PIN-ul nu a putut fi resetat.' }, { status: 400 })
       }
+
+      clearClientAuthLockouts(String(client.phone || ''))
+
+      return NextResponse.json({
+        ok: true,
+        loginUnlocked: true,
+        client: {
+          id: client.id,
+          full_name: client.full_name,
+          phone: client.phone,
+        },
+      })
+    }
+
+    if (action === 'unlock_client_login') {
+      const clientId = String(body?.clientId ?? '')
+      if (!clientId) {
+        return NextResponse.json({ error: 'Client invalid.' }, { status: 400 })
+      }
+
+      const { data: client, error: clientError } = await supabase
+        .from('clients')
+        .select('id, full_name, phone')
+        .eq('id', clientId)
+        .maybeSingle()
+
+      if (clientError || !client?.id) {
+        return NextResponse.json({ error: 'Clienta nu a fost găsită.' }, { status: 404 })
+      }
+
+      clearClientAuthLockouts(String(client.phone || ''))
 
       return NextResponse.json({
         ok: true,

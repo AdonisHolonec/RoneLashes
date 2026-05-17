@@ -35,6 +35,14 @@ export function registerClientLoginFailure(key: string) {
   return { failures, blockMs }
 }
 
+export function getClientLoginLockKey(phone: string) {
+  return `client-login:${String(phone).trim()}`
+}
+
 export function resetClientLoginFailures(key: string) {
   loginGuard.delete(key)
+}
+
+export function unlockClientLoginByPhone(phone: string) {
+  resetClientLoginFailures(getClientLoginLockKey(phone))
 }
