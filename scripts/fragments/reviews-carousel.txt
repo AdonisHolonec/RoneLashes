@@ -1,0 +1,27 @@
+            {reviewedAppointments.length > 0 ? (
+              <Carousel3D
+                items={reviewedAppointments}
+                getKey={(rev) => String(rev.id)}
+                ariaLabel="Recenzii cliente"
+                autoPlayMs={4500}
+                stageHeight="min(340px, 52vh)"
+                slideWidth="min(280px, 86vw)"
+                renderSlide={(rev, _index, isActive) => (
+                  <div
+                    className={`bg-white/95 p-6 rounded-[2rem] border border-white/50 whitespace-normal text-left h-full min-h-[220px] flex flex-col ${isActive ? 'shadow-xl' : 'shadow-md'}`}
+                  >
+                    <div className="flex justify-between items-start mb-3 gap-3">
+                      <div>
+                        <p className="font-black text-sm text-black">{String(rev.client_name || 'Clientă').split(' ')[0]}</p>
+                        <p className="text-[9px] font-black uppercase text-[#e21a6e] mt-1 tracking-wider">{rev.notes}</p>
+                      </div>
+                      <div className="flex text-yellow-400 text-sm drop-shadow-sm shrink-0">
+                        {'★'.repeat(rev.rating)}
+                      </div>
+                    </div>
+                    <p className={`text-xs italic font-medium text-black/80 leading-relaxed flex-1 ${isActive ? '' : 'line-clamp-3'}`}>
+                      &quot;{rev.review_text}&quot;
+                    </p>
+                  </div>
+                )}
+              />

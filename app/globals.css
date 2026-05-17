@@ -128,3 +128,48 @@ body {
   text-transform: uppercase;
   opacity: 0.5;
 }
+
+.carousel-3d-viewport {
+  overflow: visible;
+  user-select: none;
+}
+
+.carousel-3d-stage {
+  transform-style: preserve-3d;
+}
+
+.carousel-3d-slide-active {
+  filter: drop-shadow(0 22px 36px rgba(226, 26, 110, 0.22));
+}
+
+.carousel-3d-nav {
+  position: absolute;
+  top: 42%;
+  z-index: 40;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f1721;
+  font-size: 1.75rem;
+  line-height: 1;
+  font-weight: 900;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.18s ease, background-color 0.18s ease;
+}
+
+.carousel-3d-nav:hover {
+  transform: translateY(-50%) scale(1.06);
+  background: #fff;
+}
+
+.carousel-3d-nav-prev {
+  left: 0;
+  transform: translateY(-50%);
+}
+
+.carousel-3d-nav-next {
+  right: 0;
+  transform: translateY(-50%);
+}

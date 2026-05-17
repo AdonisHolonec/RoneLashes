@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DayPicker } from 'react-day-picker'
 import { ro } from 'date-fns/locale'
 import { format, addDays, addMinutes, isBefore, isAfter, parseISO, isSameDay, startOfToday } from 'date-fns'
 import emailjs from '@emailjs/browser'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { Carousel3D } from '@/components/Carousel3D'
 import { PortfolioMediaFill } from '@/components/PortfolioMediaFill'
 import { DEFAULT_CATEGORY_ORDER, DEFAULT_SUBCATEGORY_ORDER, sortByPreferredOrder } from '@/lib/service-order'
 import 'react-day-picker/dist/style.css'
@@ -28,10 +29,6 @@ export default function Home() {
   
   const [showAftercare, setShowAftercare] = useState(false)
 
-  // --- REFS PENTRU AUTO-SCROLL ---
-  const reviewsRef = useRef<HTMLDivElement>(null)
-  const portfolioRef = useRef<HTMLDivElement>(null)
-  
   // State-uri pentru Recenzii (Review)
   const [reviewModalOpen, setReviewModalOpen] = useState(false)
   const [reviewApp, setReviewApp] = useState<any>(null)
@@ -123,38 +120,6 @@ export default function Home() {
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
     return () => window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt)
   }, [])
-
-  // --- LOGICA PENTRU RULARE AUTOMATĂ ---
-  useEffect(() => {
-    // Scroll automat Recenzii (Prima Pagina)
-    const reviewsInterval = setInterval(() => {
-      if (reviewsRef.current && view === 'auth') {
-        const { scrollLeft, offsetWidth, scrollWidth } = reviewsRef.current
-        if (scrollLeft + offsetWidth >= scrollWidth - 10) {
-          reviewsRef.current.scrollTo({ left: 0, behavior: 'smooth' })
-        } else {
-          reviewsRef.current.scrollBy({ left: 280, behavior: 'smooth' })
-        }
-      }
-    }, 3500)
-
-    // Scroll automat Portofoliu (Dashboard)
-    const portfolioInterval = setInterval(() => {
-      if (portfolioRef.current && view === 'dashboard') {
-        const { scrollLeft, offsetWidth, scrollWidth } = portfolioRef.current
-        if (scrollLeft + offsetWidth >= scrollWidth - 10) {
-          portfolioRef.current.scrollTo({ left: 0, behavior: 'smooth' })
-        } else {
-          portfolioRef.current.scrollBy({ left: 180, behavior: 'smooth' })
-        }
-      }
-    }, 3000)
-
-    return () => {
-      clearInterval(reviewsInterval)
-      clearInterval(portfolioInterval)
-    }
-  }, [view])
 
   async function fetchGlobalData() {
     try {
@@ -586,6 +551,8 @@ export default function Home() {
     [publicReviews]
   )
 
+  const portfolioPhotos = useMemo(() => photos.slice(0, 10), [photos])
+
   const reviewSummary = useMemo(() => {
     const withRating = publicReviews.filter((a) => Number(a.rating) > 0)
     if (withRating.length === 0) return { average: '0.0', count: 0 }
@@ -794,22 +761,33 @@ export default function Home() {
             </div>
 
             {reviewedAppointments.length > 0 ? (
-              <div ref={reviewsRef} className="flex gap-4 overflow-x-auto pb-6 snap-x px-6 -mx-6 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                {reviewedAppointments.map(rev => (
-                  <div key={rev.id} className="min-w-[260px] max-w-[260px] bg-white/90 p-6 rounded-[2rem] shadow-lg border border-white/40 snap-center shrink-0 whitespace-normal text-left">
-                    <div className="flex justify-between items-start mb-3">
+              <Carousel3D
+                items={reviewedAppointments}
+                getKey={(rev) => String(rev.id)}
+                ariaLabel="Recenzii cliente"
+                autoPlayMs={4500}
+                stageHeight="min(340px, 52vh)"
+                slideWidth="min(280px, 86vw)"
+                className="px-8"
+                renderSlide={(rev, _index, isActive) => (
+                  <div
+                    className={`bg-white/95 p-6 rounded-[2rem] border border-white/50 whitespace-normal text-left h-full min-h-[220px] flex flex-col ${isActive ? 'shadow-xl' : 'shadow-md'}`}
+                  >
+                    <div className="flex justify-between items-start mb-3 gap-3">
                       <div>
                         <p className="font-black text-sm text-black">{String(rev.client_name || 'Clientă').split(' ')[0]}</p>
                         <p className="text-[9px] font-black uppercase text-[#e21a6e] mt-1 tracking-wider">{rev.notes}</p>
                       </div>
-                      <div className="flex text-yellow-400 text-sm drop-shadow-sm">
-                        {"★".repeat(rev.rating)}
+                      <div className="flex text-yellow-400 text-sm drop-shadow-sm shrink-0">
+                        {'★'.repeat(rev.rating)}
                       </div>
                     </div>
-                    <p className="text-xs italic font-medium text-black/80 leading-relaxed line-clamp-4">&quot;{rev.review_text}&quot;</p>
+                    <p className={`text-xs italic font-medium text-black/80 leading-relaxed flex-1 ${isActive ? '' : 'line-clamp-3'}`}>
+                      &quot;{rev.review_text}&quot;
+                    </p>
                   </div>
-                ))}
-              </div>
+                )}
+              />
             ) : (
               <div className="ui-card-soft rounded-[2rem] p-6 text-center border border-white/60">
                 <p className="font-serif italic font-bold text-lg text-black">Recenziile vor apărea aici</p>
@@ -1069,46 +1047,57 @@ export default function Home() {
               </div>
             </div>
             
-            {/* PORTFOLIU CU AUTO-SCROLL ORIZONTAL */}
-            {photos.length > 0 && (
+            {/* PORTFOLIU 3D */}
+            {portfolioPhotos.length > 0 && (
               <div className="pt-4 pb-8">
-                <h3 className="text-[11px] font-black uppercase opacity-40 mb-4 tracking-widest px-2 text-center text-black">Lucrări Recente</h3>
-                
-                <div ref={portfolioRef} className="flex gap-4 overflow-x-auto pb-6 snap-x px-2 -mx-2 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                  {photos.slice(0, 10).map(p => {
-                    const photoRatings = portfolioRatings.filter(r => r.photo_id === p.id);
-                    const avg = photoRatings.length > 0 ? (photoRatings.reduce((sum, r) => sum + r.rating, 0) / photoRatings.length).toFixed(1) : 'Nou';
-                    const myRating = myPortfolioRatings.find(r => r.photo_id === p.id)?.rating || 0;
+                <h3 className="text-[11px] font-black uppercase opacity-40 mb-2 tracking-widest px-2 text-center text-black">Lucrări Recente</h3>
+                <Carousel3D
+                  items={portfolioPhotos}
+                  getKey={(photo) => String(photo.id)}
+                  ariaLabel="Portofoliu lucrări"
+                  autoPlayMs={3800}
+                  stageHeight="min(300px, 48vh)"
+                  slideWidth="min(220px, 72vw)"
+                  className="px-8"
+                  renderSlide={(photo, _index, isActive) => {
+                    const photoRatings = portfolioRatings.filter((r) => r.photo_id === photo.id)
+                    const avg =
+                      photoRatings.length > 0
+                        ? (photoRatings.reduce((sum, r) => sum + r.rating, 0) / photoRatings.length).toFixed(1)
+                        : 'Nou'
+                    const myRating = myPortfolioRatings.find((r) => r.photo_id === photo.id)?.rating || 0
 
                     return (
-                      <div key={p.id} className="min-w-[160px] max-w-[160px] relative aspect-square rounded-3xl overflow-hidden shadow-sm border border-[var(--border-soft)] group snap-center shrink-0">
+                      <div
+                        className={`relative aspect-square rounded-3xl overflow-hidden border border-[var(--border-soft)] ${isActive ? 'shadow-xl' : 'shadow-md'}`}
+                      >
                         <PortfolioMediaFill
-                          url={p.url}
+                          url={photo.url}
                           alt="Portofoliu"
-                          sizes="160px"
+                          sizes="220px"
                           className="object-cover"
                         />
-                        
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-6 pb-3 px-2 flex flex-col items-center justify-end">
-                          <span className="text-[9px] text-white font-black uppercase tracking-widest mb-1 shadow-black drop-shadow-md">
+                          <span className="text-[9px] text-white font-black uppercase tracking-widest mb-1 drop-shadow-md">
                             {avg === 'Nou' ? 'Fii prima care notează!' : `Nota: ${avg} ⭐`}
                           </span>
-                          <div className="flex gap-1">
-                             {[1, 2, 3, 4, 5].map(star => (
-                               <button 
-                                 key={star} 
-                                 onClick={() => ratePhoto(p.id, star)} 
-                                 className={`text-lg transition-all hover:scale-125 drop-shadow-lg ${myRating >= star ? 'text-yellow-400' : 'text-white/50 hover:text-yellow-200'}`}
-                               >
-                                 ★
-                               </button>
-                             ))}
+                          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                type="button"
+                                onClick={() => ratePhoto(photo.id, star)}
+                                className={`text-lg transition-all hover:scale-125 drop-shadow-lg ${myRating >= star ? 'text-yellow-400' : 'text-white/50 hover:text-yellow-200'}`}
+                              >
+                                ★
+                              </button>
+                            ))}
                           </div>
                         </div>
                       </div>
                     )
-                  })}
-                </div>
+                  }}
+                />
               </div>
             )}
           </div>

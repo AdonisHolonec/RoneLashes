@@ -1,0 +1,53 @@
+            {/* PORTFOLIU 3D */}
+            {portfolioPhotos.length > 0 && (
+              <div className="pt-4 pb-8">
+                <h3 className="text-[11px] font-black uppercase opacity-40 mb-2 tracking-widest px-2 text-center text-black">Lucrări Recente</h3>
+                <Carousel3D
+                  items={portfolioPhotos}
+                  getKey={(photo) => String(photo.id)}
+                  ariaLabel="Portofoliu lucrări"
+                  autoPlayMs={3800}
+                  stageHeight="min(300px, 48vh)"
+                  slideWidth="min(220px, 72vw)"
+                  className="px-2"
+                  renderSlide={(photo, _index, isActive) => {
+                    const photoRatings = portfolioRatings.filter((r) => r.photo_id === photo.id)
+                    const avg =
+                      photoRatings.length > 0
+                        ? (photoRatings.reduce((sum, r) => sum + r.rating, 0) / photoRatings.length).toFixed(1)
+                        : 'Nou'
+                    const myRating = myPortfolioRatings.find((r) => r.photo_id === photo.id)?.rating || 0
+
+                    return (
+                      <div
+                        className={`relative aspect-square rounded-3xl overflow-hidden border border-[var(--border-soft)] ${isActive ? 'shadow-xl' : 'shadow-md'}`}
+                      >
+                        <PortfolioMediaFill
+                          url={photo.url}
+                          alt="Portofoliu"
+                          sizes="220px"
+                          className="object-cover"
+                        />
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-6 pb-3 px-2 flex flex-col items-center justify-end">
+                          <span className="text-[9px] text-white font-black uppercase tracking-widest mb-1 drop-shadow-md">
+                            {avg === 'Nou' ? 'Fii prima care notează!' : `Nota: ${avg} ⭐`}
+                          </span>
+                          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                type="button"
+                                onClick={() => ratePhoto(photo.id, star)}
+                                className={`text-lg transition-all hover:scale-125 drop-shadow-lg ${myRating >= star ? 'text-yellow-400' : 'text-white/50 hover:text-yellow-200'}`}
+                              >
+                                ★
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }}
+                />
+              </div>
+            )}
