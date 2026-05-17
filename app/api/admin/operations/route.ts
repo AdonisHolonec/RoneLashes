@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { ADMIN_AUTH_COOKIE, verifyAdminSessionToken } from '@/lib/admin-auth'
 import { hashClientPin } from '@/lib/client-pin'
+import { buildBookingSummary } from '@/lib/booking'
 import { getServiceRoleSupabase } from '@/lib/service-role-supabase'
 import { getPortfolioStorageExtension, portfolioContentType, validatePortfolioUpload } from '@/lib/portfolio-media'
 
@@ -140,18 +141,49 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'manual_booking') {
+      const serviceIds = Array.isArray(body?.serviceIds)
+        ? Array.from(
+            new Set(
+              body.serviceIds.map((item: unknown) => String(item || '').trim()).filter(Boolean),
+            ),
+          )
+        : body?.serviceId
+          ? [String(body.serviceId).trim()].filter(Boolean)
+          : []
+
+      const startTime = String(body?.startTime ?? '')
+      const startAt = new Date(startTime)
+      if (serviceIds.length === 0 || !startTime || Number.isNaN(startAt.getTime())) {
+        return NextResponse.json({ error: 'Date programare manuală invalide.' }, { status: 400 })
+      }
+
+      const { data: selectedServices, error: servicesError } = await supabase
+        .from('services')
+        .select('id, name, price, duration_minutes')
+        .in('id', serviceIds)
+
+      if (servicesError || !selectedServices || selectedServices.length !== serviceIds.length) {
+        return NextResponse.json({ error: 'Serviciile selectate sunt invalide.' }, { status: 400 })
+      }
+
+      const summary = buildBookingSummary(selectedServices)
+      if (!summary.notes || summary.durationMinutes <= 0) {
+        return NextResponse.json({ error: 'Serviciile selectate sunt incomplete.' }, { status: 400 })
+      }
+
+      const endAt = new Date(startAt.getTime() + summary.durationMinutes * 60 * 1000)
       const payload = {
         client_id: body?.clientId ? String(body.clientId) : null,
         client_name: String(body?.clientName ?? ''),
         client_phone: String(body?.clientPhone ?? ''),
-        service_id: String(body?.serviceId ?? ''),
-        notes: String(body?.notes ?? ''),
-        total_price: Number(body?.totalPrice ?? 0),
-        start_time: String(body?.startTime ?? ''),
-        end_time: String(body?.endTime ?? ''),
+        service_id: summary.serviceId,
+        notes: `${summary.notes} (Manual)`,
+        total_price: summary.totalPrice,
+        start_time: startAt.toISOString(),
+        end_time: endAt.toISOString(),
         status: 'confirmed',
       }
-      if (!payload.client_name || !payload.client_phone || !payload.service_id || !payload.start_time || !payload.end_time) {
+      if (!payload.client_name || !payload.client_phone) {
         return NextResponse.json({ error: 'Date programare manuală invalide.' }, { status: 400 })
       }
       const { error } = await supabase.from('appointments').insert(payload)

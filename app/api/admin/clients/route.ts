@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ADMIN_AUTH_COOKIE, verifyAdminSessionToken } from '@/lib/admin-auth'
+import { allocateAppointmentRevenue, parseAppointmentPrice } from '@/lib/revenue-stream'
 import { getServiceRoleSupabase } from '@/lib/service-role-supabase'
 
 function isAdminAuthenticated(request: NextRequest) {
@@ -23,6 +24,14 @@ type AppointmentRow = {
   notes: string | null
   total_price: number | string | null
   rating: number | null
+  service_id: string | null
+}
+
+type ServiceRow = {
+  id: string
+  name: string
+  category: string | null
+  price: number | string | null
 }
 
 type PreferenceRow = {
@@ -31,11 +40,6 @@ type PreferenceRow = {
   sensitivity_notes: string | null
   appointment_notes: string | null
   updated_at: string | null
-}
-
-function parsePrice(value: number | string | null) {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
-  return parseInt(String(value || '0').replace(/\D/g, ''), 10) || 0
 }
 
 export async function GET(request: NextRequest) {
@@ -49,6 +53,7 @@ export async function GET(request: NextRequest) {
       { data: clients, error: clientsError },
       { data: appointments, error: appointmentsError },
       { data: preferences },
+      { data: services },
     ] =
       await Promise.all([
         supabase
@@ -57,12 +62,20 @@ export async function GET(request: NextRequest) {
           .order('created_at', { ascending: false }),
         supabase
           .from('appointments')
-          .select('id, client_id, start_time, status, notes, total_price, rating')
+          .select('id, client_id, start_time, status, notes, total_price, rating, service_id')
           .not('client_id', 'is', null),
         supabase
           .from('client_preferences')
           .select('client_id, preferred_style, sensitivity_notes, appointment_notes, updated_at'),
+        supabase.from('services').select('id, name, category, price'),
       ])
+
+    const revenueServices = ((services || []) as ServiceRow[]).map((service) => ({
+      id: service.id,
+      name: service.name,
+      category: String(service.category || ''),
+      price: parseAppointmentPrice(service.price),
+    }))
 
     if (clientsError || appointmentsError) {
       return NextResponse.json({ error: 'Nu am putut încărca lista de cliente.' }, { status: 400 })
@@ -86,7 +99,17 @@ export async function GET(request: NextRequest) {
         .filter((app) => new Date(app.start_time).getTime() >= now)
         .sort((a, b) => a.start_time.localeCompare(b.start_time))
       const rated = clientAppointments.filter((app) => Number(app.rating || 0) > 0)
-      const totalSpent = clientAppointments.reduce((acc, app) => acc + parsePrice(app.total_price), 0)
+      const totalSpent = clientAppointments.reduce((acc, app) => acc + parseAppointmentPrice(app.total_price), 0)
+      const spentByStream = clientAppointments.reduce(
+        (acc, app) => {
+          const price = parseAppointmentPrice(app.total_price)
+          const split = allocateAppointmentRevenue(price, app.service_id, app.notes, revenueServices)
+          acc.lashes += split.lashes
+          acc.makeup += split.makeup
+          return acc
+        },
+        { lashes: 0, makeup: 0 },
+      )
       const recentAppointments = [...clientAppointments]
         .sort((a, b) => b.start_time.localeCompare(a.start_time))
         .slice(0, 6)
@@ -95,7 +118,7 @@ export async function GET(request: NextRequest) {
           startTime: app.start_time,
           status: app.status || 'confirmed',
           notes: app.notes || 'Programare',
-          totalPrice: parsePrice(app.total_price),
+          totalPrice: parseAppointmentPrice(app.total_price),
           rating: app.rating,
         }))
       const preference = preferencesByClient.get(client.id)
@@ -110,6 +133,8 @@ export async function GET(request: NextRequest) {
         completedAppointments: past.length,
         futureAppointments: future.length,
         totalSpent,
+        totalSpentLashes: spentByStream.lashes,
+        totalSpentMakeup: spentByStream.makeup,
         lastVisitAt: past[0]?.start_time || null,
         nextVisitAt: future[0]?.start_time || null,
         averageRating:
@@ -134,6 +159,9 @@ export async function GET(request: NextRequest) {
       return new Date(row.lastVisitAt).getTime() < inactiveSince
     }).length
 
+    const totalRevenueLashes = rows.reduce((acc, row) => acc + row.totalSpentLashes, 0)
+    const totalRevenueMakeup = rows.reduce((acc, row) => acc + row.totalSpentMakeup, 0)
+
     return NextResponse.json({
       clients: rows,
       stats: {
@@ -141,7 +169,9 @@ export async function GET(request: NextRequest) {
         clientsWithAppointments,
         bookingCoveragePct: rows.length > 0 ? Math.round((clientsWithAppointments / rows.length) * 100) : 0,
         inactive45Days,
-        totalRevenue: rows.reduce((acc, row) => acc + row.totalSpent, 0),
+        totalRevenue: totalRevenueLashes + totalRevenueMakeup,
+        totalRevenueLashes,
+        totalRevenueMakeup,
       },
     })
   } catch {

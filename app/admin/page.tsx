@@ -8,6 +8,8 @@ import { DayPicker } from 'react-day-picker'
 import Image from 'next/image'
 import { PortfolioMediaFill } from '@/components/PortfolioMediaFill'
 import { DEFAULT_CATEGORY_ORDER, DEFAULT_SUBCATEGORY_ORDER, parseCsvOrder, sortByPreferredOrder } from '@/lib/service-order'
+import { buildBookingSummary } from '@/lib/booking'
+import { allocateAppointmentRevenue, parseAppointmentPrice, type RevenueStream } from '@/lib/revenue-stream'
 import 'react-day-picker/dist/style.css'
 
 const daysMap = ['Duminică', 'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă']
@@ -77,6 +79,8 @@ export default function AdminDashboard() {
     completedAppointments: number
     futureAppointments: number
     totalSpent: number
+    totalSpentLashes: number
+    totalSpentMakeup: number
     lastVisitAt: string | null
     nextVisitAt: string | null
     averageRating: number | null
@@ -101,6 +105,8 @@ export default function AdminDashboard() {
     bookingCoveragePct: number
     inactive45Days: number
     totalRevenue: number
+    totalRevenueLashes: number
+    totalRevenueMakeup: number
   }
   const [adminClients, setAdminClients] = useState<AdminClientRow[]>([])
   const [adminClientStats, setAdminClientStats] = useState<AdminClientStats | null>(null)
@@ -130,7 +136,7 @@ export default function AdminDashboard() {
   const [manualForm, setManualForm] = useState({
      name: '',
      phone: '',
-     serviceId: '',
+     serviceIds: [] as string[],
      date: undefined as Date | undefined,
      time: '',
      clientId: null as string | null 
@@ -141,9 +147,18 @@ export default function AdminDashboard() {
   const [showPauseModal, setShowPauseModal] = useState(false)
   const [pauseForm, setPauseForm] = useState({
      date: undefined as Date | undefined,
-     time: '',
-     duration: 60,
+     mode: 'interval' as 'interval' | 'full_day',
+     startTime: '',
+     endTime: '',
      note: 'Pauză'
+  })
+
+  const defaultPauseForm = () => ({
+    date: undefined as Date | undefined,
+    mode: 'interval' as 'interval' | 'full_day',
+    startTime: '',
+    endTime: '',
+    note: 'Pauză',
   })
 
   // Gestiune Concedii
@@ -307,6 +322,8 @@ export default function AdminDashboard() {
           bookingCoveragePct: Number(payload.stats.bookingCoveragePct ?? 0),
           inactive45Days: Number(payload.stats.inactive45Days ?? 0),
           totalRevenue: Number(payload.stats.totalRevenue ?? 0),
+          totalRevenueLashes: Number(payload.stats.totalRevenueLashes ?? 0),
+          totalRevenueMakeup: Number(payload.stats.totalRevenueMakeup ?? 0),
         })
       } else {
         setAdminClientStats(null)
@@ -396,6 +413,40 @@ export default function AdminDashboard() {
     return slots
   }
 
+  const getScheduleTimeOptions = (date: Date) => {
+    if (isDateInClosure(date)) return []
+    const day = date.getDay()
+    const daySchedule = schedule.find((s) => s.day_of_week === day)
+    if (!daySchedule || daySchedule.is_day_off) return []
+    const [openH, openM] = daySchedule.open_time.split(':')
+    const [closeH, closeM] = daySchedule.close_time.split(':')
+    const start = parseInt(openH) * 60 + parseInt(openM)
+    const end = parseInt(closeH) * 60 + parseInt(closeM)
+    const options: string[] = []
+    for (let curr = start; curr <= end; curr += 30) {
+      const h = Math.floor(curr / 60).toString().padStart(2, '0')
+      const m = (curr % 60).toString().padStart(2, '0')
+      options.push(`${h}:${m}`)
+    }
+    return options
+  }
+
+  const getDayScheduleBounds = (date: Date) => {
+    const daySchedule = schedule.find((s) => s.day_of_week === date.getDay())
+    if (!daySchedule || daySchedule.is_day_off) return null
+    return { open: daySchedule.open_time.slice(0, 5), close: daySchedule.close_time.slice(0, 5) }
+  }
+
+  const buildPauseRange = (date: Date, startHHmm: string, endHHmm: string) => {
+    const [sh, sm] = startHHmm.split(':')
+    const [eh, em] = endHHmm.split(':')
+    const start = new Date(date)
+    start.setHours(parseInt(sh, 10), parseInt(sm, 10), 0, 0)
+    const end = new Date(date)
+    end.setHours(parseInt(eh, 10), parseInt(em, 10), 0, 0)
+    return { start, end }
+  }
+
   const handleLogout = () => {
     fetch('/api/admin/logout', { method: 'POST' }).finally(() => {
       router.push('/login')
@@ -434,28 +485,84 @@ export default function AdminDashboard() {
   }
 
   // --- LOGICA STATISTICI & FINANTE ---
-  const calculateIncome = (period: 'today' | 'month' | 'year') => {
+  const revenueServices = useMemo(
+    () =>
+      services.map((service) => ({
+        id: String(service.id),
+        name: String(service.name || ''),
+        category: String(service.category || ''),
+        price: parseAppointmentPrice(service.price),
+      })),
+    [services],
+  )
+
+  const getRevenueForAppointment = useCallback(
+    (app: { total_price?: unknown; service_id?: string | null; notes?: string | null }) => {
+      const price = parseAppointmentPrice(app.total_price)
+      return allocateAppointmentRevenue(price, app.service_id, app.notes, revenueServices)
+    },
+    [revenueServices],
+  )
+
+  const calculateIncome = (period: 'today' | 'month' | 'year', stream?: RevenueStream) => {
     const now = new Date()
-    const validApps = appointments.filter(a => a.status === 'confirmed' || a.status === 'completed')
+    const validApps = appointments.filter(
+      (a) => (a.status === 'confirmed' || a.status === 'completed') && a.client_phone !== '-',
+    )
     let filtered = validApps
-    if (period === 'today') filtered = validApps.filter(a => isSameDay(parseISO(a.start_time), now))
-    else if (period === 'month') filtered = validApps.filter(a => isAfter(parseISO(a.start_time), startOfMonth(now)) && isBefore(parseISO(a.start_time), endOfMonth(now)))
-    else if (period === 'year') filtered = validApps.filter(a => isAfter(parseISO(a.start_time), startOfYear(now)) && isBefore(parseISO(a.start_time), endOfYear(now)))
-    return filtered.reduce((acc, curr) => acc + (parseInt(String(curr.total_price || '0').replace(/\D/g, '')) || 0), 0)
+    if (period === 'today') filtered = validApps.filter((a) => isSameDay(parseISO(a.start_time), now))
+    else if (period === 'month') {
+      filtered = validApps.filter(
+        (a) => isAfter(parseISO(a.start_time), startOfMonth(now)) && isBefore(parseISO(a.start_time), endOfMonth(now)),
+      )
+    } else if (period === 'year') {
+      filtered = validApps.filter(
+        (a) => isAfter(parseISO(a.start_time), startOfYear(now)) && isBefore(parseISO(a.start_time), endOfYear(now)),
+      )
+    }
+
+    return filtered.reduce((acc, app) => {
+      const split = getRevenueForAppointment(app)
+      if (stream === 'lashes') return acc + split.lashes
+      if (stream === 'makeup') return acc + split.makeup
+      return acc + split.lashes + split.makeup
+    }, 0)
   }
 
   const getIncomesByMonth = () => {
-    const valid = appointments.filter(a => a.status === 'confirmed' || a.status === 'completed')
-    const months: any = {}
-    valid.forEach(app => {
+    const valid = appointments.filter(
+      (a) => (a.status === 'confirmed' || a.status === 'completed') && a.client_phone !== '-',
+    )
+    const months: Record<
+      string,
+      {
+        total: number
+        lashes: number
+        makeup: number
+        days: Record<string, { total: number; lashes: number; makeup: number }>
+      }
+    > = {}
+
+    valid.forEach((app) => {
       const date = parseISO(app.start_time)
       const monthKey = format(date, 'MMMM yyyy', { locale: ro })
       const dayKey = format(date, 'yyyy-MM-dd')
-      const price = parseInt(String(app.total_price || '0').replace(/\D/g, '')) || 0
-      if (!months[monthKey]) months[monthKey] = { total: 0, days: {} }
+      const split = getRevenueForAppointment(app)
+      const price = split.lashes + split.makeup
+
+      if (!months[monthKey]) months[monthKey] = { total: 0, lashes: 0, makeup: 0, days: {} }
       months[monthKey].total += price
-      months[monthKey].days[dayKey] = (months[monthKey].days[dayKey] || 0) + price
+      months[monthKey].lashes += split.lashes
+      months[monthKey].makeup += split.makeup
+
+      if (!months[monthKey].days[dayKey]) {
+        months[monthKey].days[dayKey] = { total: 0, lashes: 0, makeup: 0 }
+      }
+      months[monthKey].days[dayKey].total += price
+      months[monthKey].days[dayKey].lashes += split.lashes
+      months[monthKey].days[dayKey].makeup += split.makeup
     })
+
     return months
   }
 
@@ -565,15 +672,42 @@ export default function AdminDashboard() {
   const buildRetentionMessage = (client: AdminClientRow) =>
     `Bună, ${client.fullName}! ✨\n\nNu ne-am mai văzut de ceva timp la RoneLashes și voiam să te întreb dacă dorești să îți rezerv un loc pentru întreținere / o nouă programare.\n\nÎmi poți scrie aici ce zi ți-ar fi potrivită. 💖`
 
+  const manualSelectedServices = useMemo(
+    () => services.filter((service) => manualForm.serviceIds.includes(String(service.id))),
+    [services, manualForm.serviceIds],
+  )
+
+  const manualBookingSummary = useMemo(() => {
+    if (manualSelectedServices.length === 0) return null
+    return buildBookingSummary(
+      manualSelectedServices.map((service) => ({
+        id: String(service.id),
+        name: service.name,
+        price: service.price,
+        duration_minutes: service.duration_minutes,
+      })),
+    )
+  }, [manualSelectedServices])
+
+  const toggleManualService = (service: { id: string }) => {
+    const id = String(service.id)
+    setManualForm((prev) => {
+      const serviceIds = prev.serviceIds.includes(id)
+        ? prev.serviceIds.filter((item) => item !== id)
+        : [...prev.serviceIds, id]
+      return { ...prev, serviceIds, time: '' }
+    })
+  }
+
   const openManualBooking = (client?: Pick<AdminClientRow, 'id' | 'fullName' | 'phone'>) => {
-    setManualForm((prev) => ({
-      ...prev,
-      name: client?.fullName || prev.name,
-      phone: client?.phone || prev.phone,
-      clientId: client?.id || prev.clientId,
+    setManualForm({
+      name: client?.fullName || '',
+      phone: client?.phone || '',
+      serviceIds: [],
       date: selectedAgendaDate,
       time: '',
-    }))
+      clientId: client?.id || null,
+    })
     setIsExistingClient(Boolean(client))
     setShowManualBooking(true)
   }
@@ -586,13 +720,16 @@ export default function AdminDashboard() {
   }
 
   const handleManualBooking = async () => {
-    if (!manualForm.name || !manualForm.phone || !manualForm.serviceId || !manualForm.date || !manualForm.time) {
-      return alert("Completează toate câmpurile!")
+    if (!manualForm.name || !manualForm.phone || manualForm.serviceIds.length === 0 || !manualForm.date || !manualForm.time) {
+      return alert('Completează toate câmpurile și selectează cel puțin un serviciu.')
     }
-    const s = services.find(x => x.id === manualForm.serviceId)
-    const [h, m] = manualForm.time.split(':'); const start = new Date(manualForm.date)
-    start.setHours(parseInt(h), parseInt(m), 0, 0)
-    
+    if (!manualBookingSummary) return alert('Serviciile selectate sunt invalide.')
+
+    const [h, m] = manualForm.time.split(':')
+    const start = new Date(manualForm.date)
+    start.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0)
+    const serviceNames = manualBookingSummary.notes
+
     const response = await fetch('/api/admin/operations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -601,19 +738,19 @@ export default function AdminDashboard() {
         clientId: manualForm.clientId,
         clientName: manualForm.name,
         clientPhone: manualForm.phone,
-        serviceId: manualForm.serviceId,
-        notes: `${s?.name} (Manual)`,
-        totalPrice: parseInt(String(s?.price || '0').replace(/\D/g, '')) || 0,
+        serviceIds: manualForm.serviceIds,
         startTime: start.toISOString(),
-        endTime: addMinutes(start, s?.duration_minutes || 60).toISOString(),
       }),
     })
 
     if (response.ok) {
-      const msg = `Bună, ${manualForm.name}! Te-am programat pe data de ${format(start, 'dd MMMM', {locale: ro})}, la ora ${manualForm.time}. ✨`
-      let p = manualForm.phone.trim(); if (p.startsWith('0')) p = p.substring(1)
+      const msg = `Bună, ${manualForm.name}! Te-am programat pe data de ${format(start, 'dd MMMM', { locale: ro })}, la ora ${manualForm.time}, pentru: ${serviceNames}. ✨`
+      let p = manualForm.phone.trim()
+      if (p.startsWith('0')) p = p.substring(1)
       window.open(`https://wa.me/40${p}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
-      setShowManualBooking(false); setManualForm({ name: '', phone: '', serviceId: '', date: selectedAgendaDate, time: '', clientId: null }); fetchAdminData()
+      setShowManualBooking(false)
+      setManualForm({ name: '', phone: '', serviceIds: [], date: selectedAgendaDate, time: '', clientId: null })
+      fetchAdminData()
       return
     }
     const payload = await response.json().catch(() => ({}))
@@ -621,10 +758,33 @@ export default function AdminDashboard() {
   }
 
   const handleSavePause = async () => {
-    if (!pauseForm.date || !pauseForm.time) return alert("Completează data și ora!")
-    const [h, m] = pauseForm.time.split(':'); const start = new Date(pauseForm.date)
-    start.setHours(parseInt(h), parseInt(m), 0, 0)
-    
+    if (!pauseForm.date) return alert('Alege data pauzei.')
+
+    let startHHmm: string
+    let endHHmm: string
+
+    if (pauseForm.mode === 'full_day') {
+      const bounds = getDayScheduleBounds(pauseForm.date)
+      if (!bounds) return alert('Ziua selectată este închisă în programul de lucru.')
+      startHHmm = bounds.open
+      endHHmm = bounds.close
+    } else {
+      if (!pauseForm.startTime || !pauseForm.endTime) return alert('Alege ora de început și ora de sfârșit.')
+      startHHmm = pauseForm.startTime
+      endHHmm = pauseForm.endTime
+    }
+
+    const { start, end } = buildPauseRange(pauseForm.date, startHHmm, endHHmm)
+    if (end.getTime() <= start.getTime()) return alert('Ora de sfârșit trebuie să fie după ora de început.')
+
+    const bounds = getDayScheduleBounds(pauseForm.date)
+    if (bounds) {
+      const { start: dayOpen, end: dayClose } = buildPauseRange(pauseForm.date, bounds.open, bounds.close)
+      if (start.getTime() < dayOpen.getTime() || end.getTime() > dayClose.getTime()) {
+        return alert(`Intervalul trebuie să fie între ${bounds.open} și ${bounds.close}.`)
+      }
+    }
+
     const response = await fetch('/api/admin/operations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -632,7 +792,7 @@ export default function AdminDashboard() {
         action: 'save_pause',
         note: pauseForm.note,
         startTime: start.toISOString(),
-        endTime: addMinutes(start, pauseForm.duration).toISOString(),
+        endTime: end.toISOString(),
       }),
     })
     if (!response.ok) {
@@ -640,7 +800,9 @@ export default function AdminDashboard() {
       alert(payload?.error || 'Pauza nu a putut fi salvată.')
       return
     }
-    setShowPauseModal(false); setPauseForm({ date: undefined, time: '', duration: 60, note: 'Pauză' }); fetchAdminData()
+    setShowPauseModal(false)
+    setPauseForm(defaultPauseForm())
+    fetchAdminData()
   }
 
   const handleSaveService = async () => {
@@ -1288,12 +1450,33 @@ export default function AdminDashboard() {
               <div className="space-y-4 mb-8 text-black">
                 <input placeholder="Telefon Clientă" className="ui-input" value={manualForm.phone} onChange={e => setManualForm({...manualForm, phone: e.target.value})} />
                 <input placeholder="Nume Clientă" className={`ui-input ${isExistingClient ? 'border-green-500' : ''}`} value={manualForm.name} onChange={e => setManualForm({...manualForm, name: e.target.value})} />
-                <select className="ui-input" value={manualForm.serviceId} onChange={e => setManualForm({...manualForm, serviceId: e.target.value, time: ''})}>
-                  <option value="">1. Alege Serviciul...</option>
-                  {services.map(s => <option key={s.id} value={s.id}>{s.name} — {s.price}</option>)}
-                </select>
-                
-                {manualForm.serviceId && (
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">1. Alege serviciile (poți selecta mai multe)</p>
+                <div className="max-h-52 overflow-y-auto space-y-2 border border-gray-100 rounded-2xl p-2 bg-gray-50">
+                  {services.map((service) => {
+                    const isSelected = manualForm.serviceIds.includes(String(service.id))
+                    return (
+                      <button
+                        key={service.id}
+                        type="button"
+                        onClick={() => toggleManualService(service)}
+                        className={`w-full flex justify-between items-center p-3 rounded-xl border-2 transition-all text-left ${isSelected ? 'border-[#e21a6e] bg-[#fff5f8]' : 'border-transparent bg-white hover:border-gray-200'}`}
+                      >
+                        <div>
+                          <p className="font-bold text-sm">{isSelected ? '✓ ' : ''}{service.name}</p>
+                          <p className="text-[10px] font-black text-[#e21a6e]">{service.duration_minutes} min · {service.category || 'Serviciu'}</p>
+                        </div>
+                        <p className="font-black text-sm shrink-0 ml-2">{service.price} RON</p>
+                      </button>
+                    )
+                  })}
+                </div>
+                {manualBookingSummary && (
+                  <p className="text-center text-sm font-bold text-black/70">
+                    {manualBookingSummary.notes} · {manualBookingSummary.durationMinutes} min · {manualBookingSummary.totalPrice} RON
+                  </p>
+                )}
+
+                {manualForm.serviceIds.length > 0 && (
                    <>
                     <p className="text-[10px] font-black uppercase opacity-40 text-center mt-4 tracking-widest">2. Alege Data</p>
                     <div className="flex justify-center scale-90 border border-gray-100 rounded-3xl bg-gray-50 p-2">
@@ -1306,7 +1489,7 @@ export default function AdminDashboard() {
                   <>
                     <p className="text-[10px] font-black uppercase opacity-40 text-center mt-4 tracking-widest">3. Alege Ora Liberă</p>
                     <div className="grid grid-cols-4 gap-2">
-                       {getAdminAvailableTimes(manualForm.date, services.find(x => x.id === manualForm.serviceId)?.duration_minutes || 60).map(slot => (
+                       {getAdminAvailableTimes(manualForm.date, manualBookingSummary?.durationMinutes || 60).map(slot => (
                          <button 
                            key={slot} 
                            onClick={() => setManualForm({...manualForm, time: slot})} 
@@ -1316,8 +1499,8 @@ export default function AdminDashboard() {
                          </button>
                        ))}
                     </div>
-                    {getAdminAvailableTimes(manualForm.date, services.find(x => x.id === manualForm.serviceId)?.duration_minutes || 60).length === 0 && (
-                      <p className="text-center text-xs text-red-500 font-bold">Nicio oră disponibilă pentru acest serviciu în ziua selectată.</p>
+                    {getAdminAvailableTimes(manualForm.date, manualBookingSummary?.durationMinutes || 60).length === 0 && (
+                      <p className="text-center text-xs text-red-500 font-bold">Nicio oră disponibilă pentru durata selectată în ziua aleasă.</p>
                     )}
                   </>
                 )}
@@ -1337,40 +1520,81 @@ export default function AdminDashboard() {
         {showPauseModal && (
           <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in">
             <div className="ui-card w-full max-w-lg rounded-[2.5rem] p-8 md:p-12 relative overflow-y-auto max-h-[90vh]">
-              <button onClick={() => setShowPauseModal(false)} className="absolute top-8 right-8 w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center font-black text-black hover:bg-gray-200">✕</button>
+              <button onClick={() => { setShowPauseModal(false); setPauseForm(defaultPauseForm()) }} className="absolute top-8 right-8 w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center font-black text-black hover:bg-gray-200">✕</button>
               <h3 className="text-2xl font-serif italic font-bold mb-8 text-black text-center">☕ Blochează Ore (Pauză)</h3>
               <div className="space-y-4 mb-8 text-black">
                 <input placeholder="Motiv (ex: Pauză de masă)" className="ui-input" value={pauseForm.note} onChange={e => setPauseForm({...pauseForm, note: e.target.value})} />
-                <select className="ui-input" value={pauseForm.duration} onChange={e => setPauseForm({...pauseForm, duration: parseInt(e.target.value), time: ''})}>
-                  <option value={30}>Durată: 30 Minute</option>
-                  <option value={60}>Durată: 1 Oră</option>
-                  <option value={120}>Durată: 2 Ore</option>
-                  <option value={180}>Durată: 3 Ore</option>
-                </select>
-                <div className="flex justify-center scale-90 border border-gray-100 rounded-3xl bg-gray-50 p-2">
-                  <DayPicker mode="single" selected={pauseForm.date} onSelect={(d) => setPauseForm({...pauseForm, date: d, time: ''})} locale={ro} disabled={[ { before: new Date() }, { dayOfWeek: disabledDaysOfWeek }, (date) => isDateInClosure(date) ]} />
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPauseForm({ ...pauseForm, mode: 'interval', startTime: '', endTime: '' })}
+                    className={`py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${pauseForm.mode === 'interval' ? 'bg-black text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+                  >
+                    Interval orar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPauseForm({ ...pauseForm, mode: 'full_day', startTime: '', endTime: '' })}
+                    className={`py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${pauseForm.mode === 'full_day' ? 'bg-black text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+                  >
+                    Zi întreagă
+                  </button>
                 </div>
-                
-                {pauseForm.date && (
+                <div className="flex justify-center scale-90 border border-gray-100 rounded-3xl bg-gray-50 p-2">
+                  <DayPicker mode="single" selected={pauseForm.date} onSelect={(d) => setPauseForm({ ...pauseForm, date: d, startTime: '', endTime: '' })} locale={ro} disabled={[ { before: new Date() }, { dayOfWeek: disabledDaysOfWeek }, (date) => isDateInClosure(date) ]} />
+                </div>
+
+                {pauseForm.date && pauseForm.mode === 'full_day' && (
+                  <p className="text-center text-sm font-bold text-gray-600">
+                    {getDayScheduleBounds(pauseForm.date)
+                      ? `Se blochează întreaga zi de lucru (${getDayScheduleBounds(pauseForm.date)!.open} – ${getDayScheduleBounds(pauseForm.date)!.close}).`
+                      : 'Ziua selectată este închisă în programul de lucru.'}
+                  </p>
+                )}
+
+                {pauseForm.date && pauseForm.mode === 'interval' && (
                   <>
-                    <p className="text-[10px] font-black uppercase opacity-40 text-center mt-2 tracking-widest">Alege intervalul liber</p>
-                    <div className="grid grid-cols-4 gap-2">
-                      {getAdminAvailableTimes(pauseForm.date, pauseForm.duration).map(slot => (
-                        <button 
-                          key={slot} 
-                          onClick={() => setPauseForm({...pauseForm, time: slot})} 
-                          className={`py-3 rounded-xl font-black text-xs transition-all ${pauseForm.time === slot ? 'bg-black text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
-                        >
-                          {slot}
-                        </button>
-                      ))}
+                    <p className="text-[10px] font-black uppercase opacity-40 text-center tracking-widest">Ora început — ora sfârșit</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <select
+                        className="ui-input"
+                        value={pauseForm.startTime}
+                        onChange={(e) => {
+                          const startTime = e.target.value
+                          const endTime =
+                            pauseForm.endTime && pauseForm.endTime <= startTime ? '' : pauseForm.endTime
+                          setPauseForm({ ...pauseForm, startTime, endTime })
+                        }}
+                      >
+                        <option value="">Început</option>
+                        {getScheduleTimeOptions(pauseForm.date).map((t) => (
+                          <option key={`start-${t}`} value={t}>{t}</option>
+                        ))}
+                      </select>
+                      <select
+                        className="ui-input"
+                        value={pauseForm.endTime}
+                        onChange={(e) => setPauseForm({ ...pauseForm, endTime: e.target.value })}
+                        disabled={!pauseForm.startTime}
+                      >
+                        <option value="">Sfârșit</option>
+                        {getScheduleTimeOptions(pauseForm.date)
+                          .filter((t) => !pauseForm.startTime || t > pauseForm.startTime)
+                          .map((t) => (
+                            <option key={`end-${t}`} value={t}>{t}</option>
+                          ))}
+                      </select>
                     </div>
                   </>
                 )}
               </div>
-              <button 
-                onClick={handleSavePause} 
-                disabled={!pauseForm.time} 
+              <button
+                onClick={handleSavePause}
+                disabled={
+                  !pauseForm.date ||
+                  (pauseForm.mode === 'interval' && (!pauseForm.startTime || !pauseForm.endTime)) ||
+                  (pauseForm.mode === 'full_day' && !getDayScheduleBounds(pauseForm.date))
+                }
                 className="ui-btn ui-btn-primary w-full py-5 font-black rounded-3xl uppercase tracking-widest shadow-xl disabled:opacity-30"
               >
                 Salvează Pauza
@@ -1461,9 +1685,71 @@ export default function AdminDashboard() {
         {activeTab === 'finance' && (
           <div className="animate-in fade-in duration-700">
             <h2 className="text-4xl font-serif italic font-bold mb-10">Contabilitate</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+              <div className="ui-card p-6 rounded-[2rem] border border-[#e21a6e]/20 bg-[#fff5f8]">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Lashes</p>
+                <p className="text-3xl font-black mt-2 text-[#e21a6e]">{calculateIncome('year', 'lashes')} RON</p>
+                <p className="text-[10px] font-bold text-black/45 mt-2">Luna: {calculateIncome('month', 'lashes')} RON</p>
+              </div>
+              <div className="ui-card p-6 rounded-[2rem] border border-gray-200">
+                <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Make-up</p>
+                <p className="text-3xl font-black mt-2">{calculateIncome('year', 'makeup')} RON</p>
+                <p className="text-[10px] font-bold text-black/45 mt-2">Luna: {calculateIncome('month', 'makeup')} RON</p>
+              </div>
+              <div className="ui-card p-6 rounded-[2rem] border border-black/10 bg-black text-white">
+                <p className="text-[10px] font-black uppercase opacity-50 tracking-widest">Total</p>
+                <p className="text-3xl font-black mt-2">{calculateIncome('year')} RON</p>
+                <p className="text-[10px] font-bold text-white/60 mt-2">Luna: {calculateIncome('month')} RON · Azi: {calculateIncome('today')} RON</p>
+              </div>
+            </div>
+            <p className="text-[10px] font-black uppercase opacity-35 tracking-widest mb-6">
+              Lashes: Montare gene, Demontare gene, Cosmetica · restul: Make-up
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-              <div className="space-y-4">{Object.entries(getIncomesByMonth()).map(([month, data]: any) => ( <button key={month} onClick={() => setSelectedMonth(selectedMonth === month ? null : month)} className={`w-full p-8 rounded-[2.5rem] flex justify-between items-center transition-all border ${selectedMonth === month ? 'bg-black text-white border-black shadow-xl' : 'bg-white border-gray-100 hover:border-[#e21a6e]/30'}`}><span className="text-xl font-black capitalize">{month}</span><p className={`text-sm font-black text-[#e21a6e]`}>{data.total} RON</p></button> ))}</div>
-              <div className="ui-card p-10 rounded-[3rem] shadow-sm h-fit">{selectedMonth ? ( <div className="animate-in slide-in-from-right-4"><h3 className="text-xl font-black mb-6 border-b pb-4">Detaliu: {selectedMonth}</h3><div className="space-y-4">{Object.entries(getIncomesByMonth()[selectedMonth].days).sort((a, b) => b[0].localeCompare(a[0])).map(([date, total]: any) => ( <div key={date} className="flex justify-between items-center py-3 border-b border-gray-50 last:border-0 text-black"><p className="font-bold text-sm">{format(parseISO(date), 'EEEE, dd MMMM', { locale: ro })}</p><p className="font-black text-md">{total} RON</p></div> ))}</div></div> ) : <p className="text-center py-20 opacity-20 italic">Selectează o lună.</p>}</div>
+              <div className="space-y-4">
+                {Object.entries(getIncomesByMonth()).map(([month, data]) => (
+                  <button
+                    key={month}
+                    onClick={() => setSelectedMonth(selectedMonth === month ? null : month)}
+                    className={`w-full p-8 rounded-[2.5rem] flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 transition-all border text-left ${selectedMonth === month ? 'bg-black text-white border-black shadow-xl' : 'bg-white border-gray-100 hover:border-[#e21a6e]/30'}`}
+                  >
+                    <span className="text-xl font-black capitalize">{month}</span>
+                    <div className="text-right">
+                      <p className={`text-sm font-black ${selectedMonth === month ? 'text-[#ffb8d4]' : 'text-[#e21a6e]'}`}>{data.total} RON</p>
+                      <p className={`text-[10px] font-bold mt-1 ${selectedMonth === month ? 'text-white/60' : 'text-black/40'}`}>
+                        Lashes {data.lashes} · Make-up {data.makeup}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="ui-card p-10 rounded-[3rem] shadow-sm h-fit">
+                {selectedMonth ? (
+                  <div className="animate-in slide-in-from-right-4">
+                    <h3 className="text-xl font-black mb-2">Detaliu: {selectedMonth}</h3>
+                    <p className="text-[10px] font-black uppercase opacity-40 tracking-widest mb-6">
+                      Lashes {getIncomesByMonth()[selectedMonth].lashes} RON · Make-up {getIncomesByMonth()[selectedMonth].makeup} RON
+                    </p>
+                    <div className="space-y-4">
+                      {Object.entries(getIncomesByMonth()[selectedMonth].days)
+                        .sort((a, b) => b[0].localeCompare(a[0]))
+                        .map(([date, dayData]) => (
+                          <div key={date} className="flex justify-between items-start gap-4 py-3 border-b border-gray-50 last:border-0 text-black">
+                            <div>
+                              <p className="font-bold text-sm">{format(parseISO(date), 'EEEE, dd MMMM', { locale: ro })}</p>
+                              <p className="text-[10px] font-bold text-black/40 mt-1">
+                                Lashes {dayData.lashes} · Make-up {dayData.makeup}
+                              </p>
+                            </div>
+                            <p className="font-black text-md shrink-0">{dayData.total} RON</p>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-center py-20 opacity-20 italic">Selectează o lună.</p>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1638,7 +1924,7 @@ export default function AdminDashboard() {
             </div>
 
             {adminClientStats && (
-              <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
+              <div className="grid grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7 gap-4 mb-8">
                 <div className="ui-card p-5 rounded-2xl">
                   <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Total cliente</p>
                   <p className="text-3xl font-black mt-2">{adminClientStats.totalClients}</p>
@@ -1655,8 +1941,16 @@ export default function AdminDashboard() {
                   <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Inactive 45 zile</p>
                   <p className="text-3xl font-black mt-2 text-orange-600">{adminClientStats.inactive45Days}</p>
                 </div>
+                <div className="ui-card p-5 rounded-2xl border border-[#e21a6e]/20 bg-[#fff5f8]">
+                  <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Venit Lashes</p>
+                  <p className="text-3xl font-black mt-2 text-[#e21a6e]">{adminClientStats.totalRevenueLashes} RON</p>
+                </div>
                 <div className="ui-card p-5 rounded-2xl">
-                  <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Venit total</p>
+                  <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Venit Make-up</p>
+                  <p className="text-3xl font-black mt-2">{adminClientStats.totalRevenueMakeup} RON</p>
+                </div>
+                <div className="ui-card p-5 rounded-2xl bg-black text-white">
+                  <p className="text-[10px] font-black uppercase opacity-50 tracking-widest">Venit total</p>
                   <p className="text-3xl font-black mt-2">{adminClientStats.totalRevenue} RON</p>
                 </div>
               </div>
@@ -1750,6 +2044,9 @@ export default function AdminDashboard() {
                         <div className="bg-[#fff5f8] border border-[#e21a6e]/15 rounded-2xl px-4 py-3 text-right">
                           <p className="text-2xl font-black">{client.totalSpent} RON</p>
                           <p className="text-[9px] font-black uppercase opacity-45">total cheltuit</p>
+                          <p className="text-[9px] font-bold text-black/40 mt-2">
+                            Lashes {client.totalSpentLashes ?? 0} · Make-up {client.totalSpentMakeup ?? 0}
+                          </p>
                         </div>
                       </div>
 
@@ -2372,3 +2669,4 @@ export default function AdminDashboard() {
     </div>
   )
 }
+

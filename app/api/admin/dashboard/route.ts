@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
     ] = await Promise.all([
       supabase
         .from('appointments')
-        .select('id, start_time, end_time, status, client_name, client_phone, notes, total_price, rating, review_text')
+        .select('id, start_time, end_time, status, client_name, client_phone, notes, total_price, rating, review_text, service_id')
         .order('start_time', { ascending: false }),
       supabase.from('services').select('*').order('category'),
       supabase.from('portfolio_ratings').select('id, photo_id, rating'),
